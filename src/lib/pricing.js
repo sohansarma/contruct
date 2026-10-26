@@ -8,7 +8,20 @@ export function codAllowed(pincode) {
   return isServiceable(pincode) && (rules.codPincodes.length === 0 || rules.codPincodes.includes(String(pincode)));
 }
 
-/** lines: [{ price, mrp, qty, heavy }] */
+/** Bulk tier pricing: the best tier whose minimum the quantity reaches. */
+export function unitPrice(variant, qty = 1) {
+  let price = variant.price;
+  for (const t of variant.tiers || []) if (qty >= t.min && t.price < price) price = t.price;
+  return price;
+}
+
+/** Next tier the customer could unlock, e.g. { min: 30, price: 405, more: 12 } */
+export function nextTier(variant, qty = 0) {
+  const t = (variant.tiers || []).filter((x) => x.min > qty).sort((a, b) => a.min - b.min)[0];
+  return t ? { ...t, more: t.min - qty } : null;
+}
+
+/** lines: [{ price, mrp, qty, heavy }] — price is the unit price after tiers */
 export function computeBill(lines, { coupon = null, isFirstOrder = false, walletBalance = 0, useWallet = false } = {}) {
   const itemTotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
   const mrpTotal = lines.reduce((s, l) => s + (l.mrp || l.price) * l.qty, 0);

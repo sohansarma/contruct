@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeBill, gstBreakup, isServiceable, validateCoupon } from '../src/lib/pricing.js';
+import { computeBill, gstBreakup, isServiceable, nextTier, unitPrice, validateCoupon } from '../src/lib/pricing.js';
+import { packsFor, paintLitres, plasterCementBags, puttyBags, tileAdhesiveBags, wireCoils } from '../src/lib/calc.js';
 import { canCancel, canReturn, refundDestination, simulatedStatus } from '../src/lib/orderLogic.js';
 import { searchProducts } from '../src/lib/search.js';
 import { categories, products } from '../src/data/catalog.js';
@@ -80,7 +81,7 @@ describe('search', () => {
   it('finds by name, brand, synonyms and size tokens', () => {
     expect(searchProducts(products, categories, 'cement')[0].categoryId).toBe('cement');
     expect(searchProducts(products, categories, 'polycab').every((p) => p.brand === 'Polycab')).toBe(true);
-    expect(searchProducts(products, categories, 'ply 18 mm').some((p) => p.id === 'bwp-ply-18')).toBe(true);
+    expect(searchProducts(products, categories, 'ply 18 mm').some((p) => p.id === 'century-sainik-mr-18')).toBe(true);
     expect(searchProducts(products, categories, 'zzzz')).toEqual([]);
   });
 });
@@ -93,5 +94,35 @@ describe('catalog integrity', () => {
       for (const v of p.variants) { expect(v.price).toBeGreaterThan(0); expect(v.mrp).toBeGreaterThanOrEqual(v.price); }
     }
     expect(new Set(products.map((p) => p.id)).size).toBe(products.length);
+  });
+});
+
+describe('bulk tiers', () => {
+  const v = { price: 425, tiers: [{ min: 10, price: 415 }, { min: 30, price: 405 }] };
+  it('picks the best tier the quantity reaches', () => {
+    expect(unitPrice(v, 1)).toBe(425);
+    expect(unitPrice(v, 10)).toBe(415);
+    expect(unitPrice(v, 29)).toBe(415);
+    expect(unitPrice(v, 30)).toBe(405);
+    expect(unitPrice({ price: 100 }, 50)).toBe(100);
+  });
+  it('tells how many more units unlock the next tier', () => {
+    expect(nextTier(v, 4)).toEqual({ min: 10, price: 415, more: 6 });
+    expect(nextTier(v, 30)).toBe(null);
+  });
+  it('catalog tiers are always cheaper than the base price', () => {
+    for (const p of products) for (const x of p.variants) for (const t of x.tiers) { expect(t.price).toBeLessThan(x.price); expect(t.min).toBeGreaterThan(1); }
+  });
+});
+
+describe('material calculator', () => {
+  it('estimates plaster cement, putty, paint, tile adhesive and wire', () => {
+    expect(plasterCementBags(100)).toBe(10); // 100 m² at 12 mm, 1:4 ≈ 9.7 bags incl. wastage
+    expect(puttyBags(100, 40)).toBe(3);
+    expect(paintLitres(120, 2)).toBe(21);
+    expect(packsFor(21)).toEqual({ 20: 1, 1: 1 });
+    expect(packsFor(37)).toEqual({ 20: 1, 10: 1, 4: 1, 1: 3 });
+    expect(tileAdhesiveBags(45)).toBe(11);
+    expect(wireCoils({ lightPoints: 20, socketPoints: 12 })).toEqual({ light: 5, power: 4, earth: 3 });
   });
 });

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 const dict = {
-  en: {},
+  en: { 'calc.promo': 'Estimate cement, putty, paint, tile adhesive and wire for your area, then add it all to cart.' },
   hi: {
     'Home': 'होम', 'Categories': 'कैटेगरी', 'Orders': 'ऑर्डर', 'Account': 'अकाउंट', 'Sign in': 'साइन इन',
     'Set location': 'लोकेशन चुनें', 'Not serviceable': 'डिलीवरी उपलब्ध नहीं', 'Delivering across': 'डिलीवरी पूरे',
@@ -22,7 +22,7 @@ const dict = {
     'Order placed': 'ऑर्डर हो गया', 'Confirmed': 'कन्फ़र्म', 'Packed at store': 'स्टोर पर पैक', 'Out for delivery': 'डिलीवरी के लिए निकला', 'Delivered': 'डिलीवर हो गया', 'Cancelled': 'रद्द',
     'Cancel order': 'ऑर्डर रद्द करें', 'Return items': 'सामान वापस करें', 'Help': 'मदद', 'Reorder': 'फिर से ऑर्डर करें', 'GST invoice': 'GST इनवॉइस', 'No orders yet': 'अभी कोई ऑर्डर नहीं',
     'Log in or sign up': 'लॉग इन या साइन अप', 'Continue': 'आगे बढ़ें', 'Enter code': 'कोड डालें', 'Mobile number': 'मोबाइल नंबर',
-    'Your orders': 'आपके ऑर्डर', 'Saved addresses': 'सेव किए पते', 'Profile & GST details': 'प्रोफ़ाइल और GST विवरण', 'Help & FAQs': 'मदद और सवाल', 'Call support': 'सपोर्ट को कॉल करें', 'Log out': 'लॉग आउट', 'Language': 'भाषा',
+    'Your orders': 'आपके ऑर्डर', 'Saved addresses': 'सेव किए पते', 'Profile & GST details': 'प्रोफ़ाइल और GST विवरण', 'Help & FAQs': 'मदद और सवाल', 'Call support': 'सपोर्ट को कॉल करें', 'Log out': 'लॉग आउट', 'Language': 'भाषा', 'Deals of the week': 'इस हफ़्ते के ऑफ़र', 'New arrivals': 'नए प्रोडक्ट', 'How much do I need?': 'कितना सामान चाहिए?', 'calc.promo': 'अपने क्षेत्रफल के हिसाब से सीमेंट, पुट्टी, पेंट, टाइल एडहेसिव और वायर का अनुमान लगाएँ और कार्ट में जोड़ें।', 'Material calculator': 'मटेरियल कैलकुलेटर',
   },
 };
 

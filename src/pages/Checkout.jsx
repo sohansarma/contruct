@@ -224,12 +224,7 @@ export function Checkout() {
     if (payMethod === 'cod' && !cod) return setErr('Pay on delivery isn’t available here.');
     setBusy(true);
     try {
-      let payment = { method: payMethod, status: payMethod === 'cod' ? 'pending' : 'paid' };
-      if (!['cod', 'wallet_credit'].includes(payMethod)) {
-        const r = await payOnline({ amount: bill.total, method: payMethod, user, receipt: `cart_${Date.now()}` });
-        payment = { method: payMethod, status: 'paid', ref: r.ref, gateway: r.gateway, gatewayOrder: r.gatewayOrder };
-      }
-      const order = await api.createOrder(user, {
+      const draft = {
         items: lines.map((l) => ({
           key: l.key, productId: l.product.id, variantId: l.variant.id, name: l.product.name, brand: l.product.brand,
           variant: l.variant.label, price: l.price, mrp: l.mrp, qty: l.qty, heavy: l.heavy, returnable: l.product.returnable, categoryId: l.product.categoryId,
@@ -238,11 +233,17 @@ export function Checkout() {
         slot: slotMode === 'asap' ? 'asap' : `${day} ${slot}`,
         etaMinutes: rules.etaMin + Math.min(60, Math.floor(lines.length * 3)),
         bill,
-        payment,
+        couponCode: coupon,
+        payment: { method: payMethod, status: payMethod === 'cod' ? 'pending' : 'paid' },
         note,
         gstin: gst ? user.gstin : '',
         businessName: gst ? user.businessName : '',
-      });
+      };
+      if (!['cod', 'wallet_credit'].includes(payMethod)) {
+        const r = await payOnline({ order: draft, method: payMethod, user });
+        draft.payment = { method: payMethod, status: 'paid', ref: r.ref, gateway: r.gateway };
+      }
+      const order = await api.createOrder(user, draft);
       clearCart();
       sessionStorage.removeItem('br:coupon');
       if (location?.pincode !== addr.pincode) setLocation({ pincode: addr.pincode, area: addr.line2 });

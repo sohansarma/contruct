@@ -379,11 +379,12 @@ export function Admin() {
         <div className="glass"><Icon name="Activity" />{orders.filter((o) => ['placed', 'confirmed', 'packed', 'out_for_delivery'].includes(o.status)).length} in progress</div>
         <div className="glass"><Icon name="Truck" />{quotes.length} bulk requests</div>
       </div>
-      <div className="seg" style={{ maxWidth: 360, marginBottom: 14 }}>
+      <div className="seg" style={{ maxWidth: 480, marginBottom: 14 }}>
         <button className={tab === 'orders' ? 'on' : ''} onClick={() => setTab('orders')}>Orders</button>
         <button className={tab === 'quotes' ? 'on' : ''} onClick={() => setTab('quotes')}>Bulk quotes</button>
+        <button className={tab === 'products' ? 'on' : ''} onClick={() => setTab('products')}>Products</button>
       </div>
-      {tab === 'orders' ? (
+      {tab === 'products' ? <AdminProducts /> : tab === 'orders' ? (
         <>
           <div className="chips" style={{ marginBottom: 12 }}>
             <button className={`chip ${filter === 'active' ? 'on' : ''}`} onClick={() => setFilter('active')}>Needs action</button>
@@ -402,7 +403,11 @@ export function Admin() {
                     <td className="num">{money(o.bill.total)}<div className="xs faint">{methodLabel(o.payment.method)}</div></td>
                     <td><StatusPill status={o.status} /></td>
                     <td><div className="row wrap" style={{ gap: 6 }}>{(ADMIN_NEXT[o.status] || []).map((s) => (
-                      <button key={s} className={`btn sm ${s === 'cancelled' ? 'danger' : 'outline'}`} onClick={async () => { await api.adminSetStatus(o.id, s); load(); }}>{STATUS[s].label}</button>
+                      <button key={s} className={`btn sm ${s === 'cancelled' ? 'danger' : 'outline'}`} onClick={async () => {
+                        const extra = s === 'out_for_delivery' ? { rider: { name: window.prompt('Delivery partner name') || '', phone: window.prompt('Delivery partner phone') || '', vehicle: 'Mini-truck' } } : {};
+                        try { await api.adminSetStatus(o.id, s, extra); } catch (e) { alert(e.message); }
+                        load();
+                      }}>{STATUS[s].label}</button>
                     ))}</div></td>
                   </tr>
                 ))}
@@ -423,6 +428,59 @@ export function Admin() {
           {!quotes.length && <Empty icon="Inbox" title="No bulk requests yet" />}
         </div>
       )}
+    </div>
+  );
+}
+
+function AdminProducts() {
+  const { notify } = useStore();
+  const [list, setList] = useState(null);
+  const [q, setQ] = useState('');
+  const [onlyEst, setOnlyEst] = useState(false);
+  const [edit, setEdit] = useState({});
+  useEffect(() => { api.adminProducts().then(setList).catch((e) => notify(e.message)); }, [notify]);
+  if (!list) return <div className="small muted">Loading…</div>;
+  const shown = list.filter((p) => (!onlyEst || p.priceSource === 'estimate') && (p.name + p.brand).toLowerCase().includes(q.toLowerCase()));
+  const save = async (p, patch) => {
+    try {
+      const u = await api.adminUpdateProduct(p.id, patch);
+      setList(list.map((x) => (x.id === p.id ? u : x)));
+      setEdit((e) => { const n = { ...e }; Object.keys(n).filter((k) => k.startsWith(p.id + '|')).forEach((k) => delete n[k]); return n; });
+      notify('Saved');
+    } catch (e) { notify(e.message); }
+  };
+  const val = (v, f) => edit[`${v.id}|${f}`] ?? (f === 'tiers' ? (v.tiers || []).map((t) => `${t.min}:${t.price}`).join(', ') : v[f]);
+  const set = (v, f, x) => setEdit({ ...edit, [`${v.id}|${f}`]: x });
+  return (
+    <div className="col">
+      <div className="row wrap">
+        <input className="input grow" style={{ maxWidth: 360 }} placeholder="Search products" value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className="row small"><input type="checkbox" className="check" checked={onlyEst} onChange={(e) => setOnlyEst(e.target.checked)} />Only estimated prices ({list.filter((p) => p.priceSource === 'estimate').length})</label>
+      </div>
+      <p className="xs muted">Bulk tiers format: <code>10:415, 30:405</code> (from 10 units ₹415 each; from 30 units ₹405).</p>
+      <div className="glass card" style={{ overflowX: 'auto', padding: 6 }}>
+        <table className="t">
+          <thead><tr><th>Product</th><th>Option</th><th className="num">Price</th><th className="num">MRP</th><th>Bulk tiers</th><th>Stock</th><th /></tr></thead>
+          <tbody>
+            {shown.flatMap((p) => p.variants.map((v, i) => (
+              <tr key={v.id}>
+                <td>{i === 0 && <><b className="small">{p.name}</b><div className="xs faint">{p.brand} · {p.priceSource === 'homerun-list' ? 'market-checked' : p.priceSource === 'admin' ? 'set by you' : 'estimate'}</div></>}</td>
+                <td className="small">{v.label}</td>
+                <td className="num"><input className="input" style={{ width: 90, height: 36 }} type="number" value={val(v, 'price')} onChange={(e) => set(v, 'price', e.target.value)} /></td>
+                <td className="num"><input className="input" style={{ width: 90, height: 36 }} type="number" value={val(v, 'mrp')} onChange={(e) => set(v, 'mrp', e.target.value)} /></td>
+                <td><input className="input" style={{ width: 150, height: 36 }} value={val(v, 'tiers')} onChange={(e) => set(v, 'tiers', e.target.value)} /></td>
+                <td>{i === 0 && <button className={`btn sm ${p.inStock ? 'outline' : 'danger'}`} onClick={() => save(p, { inStock: !p.inStock })}>{p.inStock ? 'In stock' : 'Out of stock'}</button>}</td>
+                <td>{i === 0 && <button className="btn sm dark" onClick={() => save(p, {
+                  variants: p.variants.map((x) => ({
+                    id: x.id, price: val(x, 'price'), mrp: val(x, 'mrp'),
+                    tiers: String(val(x, 'tiers')).split(',').map((s) => s.trim()).filter(Boolean).map((s) => { const [min, price] = s.split(':'); return { min: +min, price: +price }; }),
+                  })),
+                })}>Save</button>}</td>
+              </tr>
+            )))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,30 @@
+# Render blueprint: New → Blueprint → pick this repo. Fill the env vars marked sync:false.
+services:
+  - type: web
+    name: buildrun
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_PHONES
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SMS_PROVIDER
+        value: msg91
+      - key: MSG91_AUTH_KEY
+        sync: false
+      - key: MSG91_TEMPLATE_ID
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: TEST_LOGINS
+        sync: false

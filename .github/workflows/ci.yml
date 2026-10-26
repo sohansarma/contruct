@@ -18,6 +18,32 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: web-dist, path: dist }
 
+  api-e2e:
+    needs: web
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8
+        ports: ['27017:27017']
+    env:
+      MONGODB_URI: mongodb://127.0.0.1:27017/buildrun_ci
+      ALLOW_MOCK_PAYMENTS: '1'
+      ADMIN_PHONES: '+919000000000'
+      TEST_LOGINS: '+919876543210:246810,+919000000000:135790'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: VITE_API_URL= npm run build
+      - run: npm run seed
+      - run: |
+          node server/index.js > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:8080/api/health && break; sleep 1; done
+      - run: API=http://localhost:8080 npm run test:e2e
+      - if: failure()
+        run: cat server.log
+
   android:
     needs: web
     runs-on: ubuntu-latest

@@ -6,6 +6,8 @@ import { money, pct } from '../lib/format.js';
 import { brand, coupons, rules } from '../config.js';
 import { share } from '../lib/native.js';
 import { searchProducts } from '../lib/search.js';
+import { nextTier, unitPrice } from '../lib/pricing.js';
+import ProductIllustration from '../components/ProductArt.jsx';
 import { useI18n } from '../lib/i18n.jsx';
 
 const usps = [
@@ -54,9 +56,10 @@ export function Home() {
         )}
         </div>
         <div className="hero-art" aria-hidden="true">
-          {categories.slice(0, 9).map((c) => (
-            <div key={c.id} className="glass" style={{ color: c.tint, background: `linear-gradient(145deg, ${c.tint}30, ${c.tint}0c)` }}><Icon name={c.icon} size={36} /></div>
-          ))}
+          {['ultratech-ppc', 'century-sainik-mr-18', 'ap-tractor-emulsion', 'polycab-maxima-1-5', 'ashirvad-flowguard-cpvc', 'fevicol-sh', 'roff-tile-adhesive', 'legrand-switch-6a', 'bosch-gsb-600']
+            .map((id) => products.find((p) => p.id === id)).filter(Boolean).map((p) => (
+              <Link key={p.id} to={`/p/${p.id}`} className="glass" aria-label={p.name}><ProductIllustration kind={p.kind} color={p.color} /></Link>
+            ))}
         </div>
       </section>
 
@@ -84,8 +87,29 @@ export function Home() {
       </section>
 
       <section className="section">
+        <div className="section-head"><h2>{t('Deals of the week')}</h2><span className="small muted">Prices drop on bulk</span></div>
+        <div className="p-rail">{products.filter((p) => p.deal).map((p) => <ProductCard key={p.id} product={p} />)}</div>
+      </section>
+
+      <section className="section">
+        <Link to="/calculator" className="glass card row" style={{ padding: 18, gap: 16 }}>
+          <div style={{ width: 54, height: 54, borderRadius: 16, display: 'grid', placeItems: 'center', background: 'var(--accent-soft)', color: 'var(--accent)', flexShrink: 0 }}><Icon name="Calculator" size={28} /></div>
+          <div className="grow">
+            <h3>{t('How much do I need?')}</h3>
+            <div className="small muted">{t('calc.promo')}</div>
+          </div>
+          <Icon name="ChevronRight" className="faint" />
+        </Link>
+      </section>
+
+      <section className="section">
         <div className="section-head"><h2>{t('Bestsellers')}</h2></div>
         <div className="p-rail">{best.map((p) => <ProductCard key={p.id} product={p} />)}</div>
+      </section>
+
+      <section className="section">
+        <div className="section-head"><h2>{t('New arrivals')}</h2></div>
+        <div className="p-rail">{products.filter((p) => p.isNew).map((p) => <ProductCard key={p.id} product={p} />)}</div>
       </section>
 
       {rails.map((cid) => {
@@ -116,8 +140,8 @@ export function CategoryGrid({ categories }) {
     <div className="cat-grid">
       {categories.map((c) => (
         <Link key={c.id} to={`/c/${c.id}`} className="cat">
-          <div className="tile glass" style={{ color: c.tint, background: `linear-gradient(145deg, ${c.tint}26, ${c.tint}0a)` }}>
-            <Icon name={c.icon} size={34} />
+          <div className="tile glass" style={{ color: c.tint, background: `radial-gradient(120% 90% at 50% 15%, #ffffff 0%, ${c.tint}24 100%)` }}>
+            {c.art ? <ProductIllustration kind={c.art[0]} color={c.art[1]} /> : <Icon name={c.icon} size={34} />}
           </div>
           {c.name}
         </Link>
@@ -136,8 +160,8 @@ export function Categories() {
       <div className="col" style={{ gap: 10 }}>
         {categories.map((c) => (
           <Link key={c.id} to={`/c/${c.id}`} className="glass card row" style={{ padding: 12 }}>
-            <div className="tile" style={{ width: 52, height: 52, borderRadius: 14, display: 'grid', placeItems: 'center', color: c.tint, background: `${c.tint}1f` }}>
-              <Icon name={c.icon} size={26} />
+            <div className="tile" style={{ width: 56, height: 56, borderRadius: 14, display: 'grid', placeItems: 'center', color: c.tint, background: `${c.tint}1f` }}>
+              {c.art ? <ProductIllustration kind={c.art[0]} color={c.art[1]} /> : <Icon name={c.icon} size={26} />}
             </div>
             <div className="grow">
               <h3>{c.name}</h3>
@@ -236,7 +260,7 @@ export function Product() {
         </button>
       } />
       <div className="pdp">
-        <ProductArt product={p} size={120} />
+        <ProductArt product={p} variant={v} />
         <div className="col" style={{ gap: 16 }}>
           <div>
             <Link to={`/c/${p.categoryId}`} className="small accent">{cat?.name}</Link>
@@ -245,7 +269,7 @@ export function Product() {
             <div className="muted" style={{ marginTop: 4 }}>{v.label}</div>
           </div>
           <div className="row" style={{ alignItems: 'baseline' }}>
-            <span className="price" style={{ fontSize: 28 }}>{money(v.price)}</span>
+            <span className="price" style={{ fontSize: 28 }}>{money(unitPrice(v, Math.max(qty, 1)))}</span>
             {v.mrp > v.price && <><span className="strike">MRP {money(v.mrp)}</span><span className="green small" style={{ fontWeight: 600 }}>{off}% off</span></>}
           </div>
           <div className="xs muted" style={{ marginTop: -10 }}>{t('Inclusive of all taxes')}</div>
@@ -264,11 +288,37 @@ export function Product() {
             </div>
           )}
 
+          {v.tiers?.length > 0 && (
+            <div className="col">
+              <div className="small" style={{ fontWeight: 600 }}>Bulk pricing</div>
+              <div className="tiers">
+                {[{ min: 1, price: v.price }, ...v.tiers].map((t, i, arr) => {
+                  const on = qty >= t.min && (i === arr.length - 1 || qty < arr[i + 1].min);
+                  return (
+                    <div key={t.min} className={on ? 'on' : ''}>
+                      <div className="xs muted">{t.min === 1 ? `1–${arr[1].min - 1}` : `${t.min}+`} {p.unit.includes('bag') ? 'bags' : 'units'}</div>
+                      <b>{money(t.price)}</b><span className="xs muted"> each</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {nextTier(v, qty) && qty > 0 && <div className="small green">Add {nextTier(v, qty).more} more to pay {money(nextTier(v, qty).price)} each</div>}
+            </div>
+          )}
+
+          {(p.heavy || v.tiers?.length > 0) && (
+            <div className="qty-presets" aria-label="Quick quantity">
+              {(p.heavy ? [5, 10, 20, 30, 50] : [5, 10, 20, 50]).map((n) => (
+                <button key={n} className={`chip ${qty === n ? 'on' : ''}`} onClick={() => setQty(p.id, v.id, n)}>{n}</button>
+              ))}
+            </div>
+          )}
+
           <div className="row">
             {qty > 0 ? (
               <>
                 <Stepper large qty={qty} onChange={(n) => setQty(p.id, v.id, n)} />
-                <Link to="/cart" className="btn dark grow">{t('Go to cart')} · {money(v.price * qty)}</Link>
+                <Link to="/cart" className="btn dark grow">{t('Go to cart')} · {money(unitPrice(v, qty) * qty)}</Link>
               </>
             ) : (
               <div className="grow"><AddControl large product={p} variant={v} /></div>

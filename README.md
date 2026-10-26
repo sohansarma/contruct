@@ -1,146 +1,148 @@
 # BuildRun
 
-Quick-commerce for construction and interior materials: cement, plywood, paint, electricals, plumbing, hardware and more, delivered to a site in about an hour.
+Quick-commerce for construction and interior materials in Bengaluru: cement, plywood, putty and paint, wires, plumbing, hardware and more, delivered to a site in about an hour.
 
-One React codebase ships as a **website**, an **Android app** and an **iOS app** (via [Capacitor](https://capacitorjs.com)).
+One codebase ships the **website**, the **Android app** and the **iOS app**.
 
 | | |
 |---|---|
-| Frontend | React 19, React Router 7, Vite 8; plain CSS with a light/dark glass design |
-| Mobile | Capacitor 8 (`android/`, `ios/`): status bar, haptics, share, geolocation, Android back button |
-| Backend | Supabase (Postgres, phone-OTP auth, RLS, SQL functions) |
-| Payments | Razorpay (UPI, cards, net banking, wallets) and pay on delivery |
+| App | React 19 + Vite, wrapped with Capacitor 8 for Android/iOS |
+| API | Node.js + Express 5 (`server/`) |
+| Database | **MongoDB** (Atlas or self-hosted) |
+| Payments | Razorpay (UPI, cards, net banking, wallets) + pay on delivery |
+| Login | Phone OTP via MSG91 or Twilio, JWT sessions |
 
-## Features
+## What it does
 
-- **Delivery check:** detect location (GPS + OpenStreetMap reverse-geocode) or enter a pincode; shows the 60–120 min ETA or "not serviceable".
-- **Catalog:** 22 categories and ~110 products with variants (sizes, colours, packs), MRP vs. price, discount badges, specs, and returnable/heavy flags.
-- **Browse:** home rails, category pages with brand filters and sorting, and a desktop sidebar.
-- **Search:** instant suggestions, synonyms ("ply" → plywood), size tokens ("18 mm"), recent and popular searches.
-- **Cart:**
-  - no minimum order; free-delivery progress bar
-  - fees: delivery, handling, per-unit loading for heavy items
-  - coupons: percent with cap, flat, free delivery, first-order only
+- **Delivery check:** detect location or enter a pincode; shows the 60–120 min ETA or "not serviceable".
+- **Catalogue:**
+  - 24 categories and 115 products across the range a Bengaluru construction-materials store carries.
+  - Pack sizes, colours and options, with MRP vs. price.
+  - **Bulk tier pricing**, for example UltraTech PPC at ₹425, ₹415 from 10 bags, ₹405 from 30.
+  - Deals of the week and new arrivals.
+  - Each product type has its own illustration.
+- **Shopping:**
+  - Search with trade synonyms, brand filters and sorting.
+  - Quick-quantity buttons (5, 10, 20, 30, 50 bags) and a "add N more to unlock ₹X" nudge.
+  - A **material calculator** (plaster cement, wall putty, paint, tile adhesive, house wiring) that adds everything to the cart in one tap.
 - **Checkout:**
-  - phone-OTP login
-  - address book that checks each pincode
-  - express or scheduled two-hour slot, plus driver instructions
-  - payment: UPI, card, net banking, wallet, or pay on delivery (per-pincode COD); credit balance can be applied
-  - GSTIN on invoice
+  - Saved site addresses, checked against the delivery area.
+  - Express or scheduled 2-hour slot, plus driver instructions.
+  - Coupons and credit wallet.
+  - UPI, card, net banking, wallet or pay on delivery.
+  - GSTIN on the invoice.
 - **Orders:**
-  - live tracking timeline (placed → confirmed → packed → out for delivery → delivered) and delivery-partner call
-  - cancel within 10 min with a countdown
-  - return within 24 h, choosing items and a reason; non-returnable items are excluded
-  - refunds: online payments go back to the source, cash and credit become wallet credit
-  - GST tax invoice (print / save as PDF), reorder, WhatsApp help
-- **Account:** profile, business name and GSTIN (validated), saved addresses, credit wallet with transaction history.
-- **Content:** FAQ, Terms, Return/Refund, Privacy and Delivery policies, About, an SEO price-list page per category, and a bulk-quote form.
-- **Admin (`/admin`):** today's orders and revenue, a "needs action" queue, one-tap status changes (confirm → pack → dispatch → deliver, approve returns, cancel), and bulk-quote leads.
+  - Live status: placed → confirmed → packed → out for delivery (with delivery partner) → delivered.
+  - Cancel within 10 min; returns within 24 h.
+  - Refunds go to the original payment method, or to wallet credit for cash orders.
+  - GST invoice and reorder.
+- **Admin (`/admin`):**
+  - Today's orders and revenue, plus a queue of orders that need action.
+  - One-tap status updates; delivery-partner details when you dispatch.
+  - Approve returns, which refunds automatically.
+  - Bulk-quote leads.
+  - **Products tab:** edit prices, MRP, bulk tiers and stock.
+- Hindi and English, light and dark mode, FAQ and policy pages, and an SEO price-list page per category.
 
-## Run it
+**Server-side rules:** every amount is recomputed on the server from MongoDB using the same pricing code as the app, so a customer can't change a price, reuse a payment, skip payment or overspend credit. All of this is covered by the end-to-end tests.
+
+## About the catalogue and prices
+
+The categories and product range mirror what HomeRun stocks in Bengaluru (brands, product lines and pack sizes). Where HomeRun publishes a Bengaluru price list, that price and its bulk tiers are used, and those products show as "market-checked" in **Admin → Products**. Everything else is an estimate.
+
+Product photos and descriptions are **not** copied, because they're the brands' and HomeRun's copyright. Products use original illustrations. To show real photos, set `image` (a URL) on a product.
+
+**Before launch, set your own selling prices.** In Admin → Products, tick "Only estimated prices" to see the products that still need one. Prices you edit there are kept when you re-seed.
+
+## Run it locally
 
 ```bash
 npm install
-npm run dev          # http://localhost:5173
-npm test             # unit tests (pricing, coupons, order rules, search, catalog)
-npm run build        # production build in dist/
+npm run dev               # app only, DEMO mode: data on the device, login code 123456
 ```
 
-With no `.env`, the app runs in **demo mode**:
+Full stack, with a local MongoDB on 27017 (or set `MONGODB_URI`):
 
-- Everything is stored on the device.
-- The login code is **123456**.
-- Orders progress through tracking on their own.
-- Log in as **0000000000** to see the admin dashboard.
+```bash
+npm run seed              # load categories, products, bulk tiers
+VITE_API_URL= npm run build
+ALLOW_MOCK_PAYMENTS=1 ADMIN_PHONES=+919000000000 SMS_PROVIDER=console npm start   # http://localhost:8080
+```
+
+Login codes print in the server log when `SMS_PROVIDER=console`.
+
+Tests:
+
+```bash
+npm test                                      # unit: pricing, tiers, coupons, order rules, calculator, catalogue
+API=http://localhost:8080 npm run test:e2e    # live API + MongoDB, needs the TEST_LOGINS shown in tests/e2e.mjs
+```
+
+On every push, CI runs lint, the unit tests and the production build. It then runs the end-to-end suite against a real MongoDB, builds the Android APK, and builds the iOS app (unsigned).
 
 ## Go live
 
-### 1. Backend (Supabase), about 15 minutes
+### 1. Database: MongoDB Atlas (free tier is fine to start)
 
-1. Create a project at supabase.com.
-2. Open **SQL Editor** and run `supabase/schema.sql`.
-3. Under **Authentication → Providers → Phone**, enable phone sign-in and connect an SMS provider (Twilio, MessageBird, Vonage or Textlocal). For India, register your DLT template with your SMS provider.
-4. Load the catalog, serviceable pincodes and coupons:
-   ```bash
-   SUPABASE_URL=https://xxx.supabase.co SUPABASE_SERVICE_ROLE_KEY=... npm run seed
-   ```
-5. Make yourself an admin. After logging in once, run:
-   `update profiles set is_admin = true where phone = '91XXXXXXXXXX';`
+Create a cluster in the Mumbai region and a database user, and allow your host's IP (or `0.0.0.0/0`). Copy the connection string into `MONGODB_URI`, then run `MONGODB_URI=... npm run seed`.
 
-All prices, the delivery area and coupons are **re-validated on the server** in `place_order`. A customer can't change a price, skip payment, or make themselves an admin.
+### 2. SMS for login codes
 
-### 2. Payments (Razorpay)
+The simplest Indian option is **MSG91**:
 
-1. Get API keys from the Razorpay dashboard.
-2. Deploy the function and set its secrets:
-   ```bash
-   supabase functions deploy razorpay
-   supabase secrets set RAZORPAY_KEY_ID=rzp_live_xxx RAZORPAY_KEY_SECRET=xxx
-   ```
-3. Put the **key id** (not the secret) in `VITE_RAZORPAY_KEY_ID`.
+1. Register your sender ID and an OTP template with DLT. Use the variable `##otp##`.
+2. Set `SMS_PROVIDER=msg91`, `MSG91_AUTH_KEY` and `MSG91_TEMPLATE_ID`.
 
-Refunds to cards and UPI are queued in the `refunds` table. Process them by calling the function with `{ "action": "refund" }` as an admin, or from the Razorpay dashboard.
+Twilio is also supported. For App Store and Play Store review, add a reviewer login: `TEST_LOGINS=+919999999999:123456`.
 
-### 3. Environment
+### 3. Payments
 
-```bash
-cp .env.example .env   # fill VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_RAZORPAY_KEY_ID, support contacts
-```
+Complete Razorpay KYC, then set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`. The server creates gateway orders, verifies signatures and issues refunds itself. No other setup is needed.
 
-### 4. Website
+### 4. Deploy the server and website (one service)
 
-Push to GitHub and import the repo in **Vercel** or **Netlify**. Both are pre-configured (`vercel.json` / `netlify.toml` handle SPA routing). Add the same `VITE_*` variables in their dashboards and point your domain at it.
+- **Render:** New → Blueprint → this repo (`render.yaml`), then fill in the env vars.
+- **Any Docker host:** `docker build -t buildrun . && docker run -p 8080:8080 --env-file .env buildrun`
+
+Point your domain at it. The server refuses to start in production if `JWT_SECRET`, SMS or Razorpay is missing, or if mock payments are on.
 
 ### 5. Mobile apps
 
 ```bash
-npm run android   # builds, syncs, opens Android Studio → Build → Generate Signed Bundle (AAB) → Play Console
-npm run ios       # macOS + Xcode: builds, syncs, opens Xcode → Product → Archive → App Store Connect
+VITE_API_URL=https://yourdomain.in npm run android   # → Android Studio → Generate Signed Bundle → Play Console
+VITE_API_URL=https://yourdomain.in npm run ios       # → Xcode (macOS) → Archive → App Store Connect
 ```
 
-- The app ID is `co.buildrun.app` in `capacitor.config.json`. Change it before your first store upload, because it can't change afterwards.
-- Location permission text is already set for both platforms.
-- CI (`.github/workflows/ci.yml`) lints, tests, builds the web app and produces an installable **debug APK** as a workflow artifact on every push.
+Change `appId` in `capacitor.config.json` before your first upload; it can't be changed afterwards.
 
 ## Make it yours
 
 | What | Where |
 |---|---|
-| Name, support phone/email, legal name, GSTIN | `src/config.js` → `brand` |
-| Fees, free-delivery threshold, cancel/return windows, ETA, time slots | `src/config.js` → `rules` (and the `settings` table when live) |
-| Serviceable pincodes, COD areas | `src/config.js` (and the `pincodes` table when live) |
-| Coupons | `src/config.js` (and the `coupons` table when live) |
-| Products, prices, images | `src/data/catalog.js`, then `npm run seed`. Set `image` to a URL to replace the icon art. |
-| FAQ and policies | `src/data/content.js`. Have a lawyer review them. |
-| Colours and design | CSS variables at the top of `src/styles.css` |
-| App icon | `public/icon.svg`. Generate native icons with `npx @capacitor/assets generate`. |
-
-## Before you launch
-
-- [ ] Real prices and stock in `products`. The prices shipped here are placeholders.
-- [ ] Product photos: set `image` per product.
-- [ ] Per-item HSN codes and GST rates on invoices. The invoice currently applies one rate (`rules.gstRate`).
-- [ ] Real GSTIN, legal name and address in `brand`.
-- [ ] Policies reviewed by counsel.
-- [ ] Brand and trademark permissions for any manufacturer names you list.
-- [ ] SMS provider and DLT templates approved; Razorpay KYC complete.
+| Name, support contacts, legal name, GSTIN | `src/config.js` → `brand` |
+| Fees, free-delivery threshold, cancel/return windows, slots | `src/config.js` → `rules` |
+| Serviceable pincodes, COD areas, coupons | `src/config.js` |
+| Products, prices, tiers | Admin → Products, or `src/data/catalog.js` + `npm run seed` |
+| FAQ and policies | `src/data/content.js` (have a lawyer review them) |
+| Colours | CSS variables at the top of `src/styles.css` |
 
 ## Project layout
 
 ```
-src/
-  config.js            brand + business rules
-  data/catalog.js      categories & products (seed)
-  data/content.js      FAQ & policies
-  lib/api.js           data layer: demo (localStorage) | live (Supabase)
-  lib/pricing.js       bill, coupons, GST, serviceability
-  lib/orderLogic.js    statuses, cancel/return rules, refunds, tracking simulator
-  lib/payments.js      Razorpay checkout
-  lib/native.js        Capacitor bridges (haptics, share, geolocation, back button)
-  lib/search.js        product search
-  components/ui.jsx    header, tab bar, cards, sheets…
-  pages/               Shop, Checkout, Orders, Account (+ admin)
-supabase/schema.sql    tables, RLS, order functions
-supabase/functions/razorpay  payment create/verify/refund
-android/ ios/          native projects (Capacitor)
+src/                 React app (shared by web, Android, iOS)
+  config.js          brand + business rules (also used by the server)
+  data/catalog.js    categories & products (seed)
+  lib/pricing.js     bill, bulk tiers, coupons, GST (shared with server)
+  lib/orderLogic.js  statuses, cancel/return rules, refunds (shared with server)
+  lib/calc.js        material calculator
+  lib/api.js         demo backend (device) | live backend (REST API)
+  components/ProductArt.jsx  product illustrations
+server/              Express API + MongoDB
+  app.js             routes
+  orders.js          pricing, payments, cancel, return, refunds
+  auth.js / sms.js   phone OTP + JWT
+  razorpay.js        gateway orders, signature check, refunds
+  seed.js            load catalogue
+tests/               unit tests + live end-to-end suite
+android/ ios/        Capacitor native projects
 ```

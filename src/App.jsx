@@ -6,6 +6,7 @@ import { Cart, Checkout } from './pages/Checkout.jsx';
 import { Invoice, OrderDetail, Orders } from './pages/Orders.jsx';
 import { About, Account, Addresses, Admin, Bulk, Help, Login, Policy, PriceList, Profile, WalletPage } from './pages/Account.jsx';
 import { initNative } from './lib/native.js';
+import Calculator from './pages/Calculator.jsx';
 import { brand } from './config.js';
 
 const auth = (el) => <RequireAuth>{el}</RequireAuth>;
@@ -40,6 +41,7 @@ export default function App() {
           <Route path="/account/addresses" element={auth(<Addresses />)} />
           <Route path="/account/wallet" element={auth(<WalletPage />)} />
           <Route path="/bulk" element={<Bulk />} />
+          <Route path="/calculator" element={<Calculator />} />
           <Route path="/help" element={<Help />} />
           <Route path="/policy/:id" element={<Policy />} />
           <Route path="/about" element={<About />} />

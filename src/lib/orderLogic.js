@@ -55,3 +55,9 @@ export function simulatedStatus(order, now = Date.now()) {
   if (status === 'delivered') patch.deliveredAt = order.createdAt + eta * 60_000;
   return patch;
 }
+
+/** Value of the items selected in a return request. */
+export function returnAmount(o) {
+  const ids = new Set(o.returnRequest?.itemIds || []);
+  return o.items.filter((i) => ids.has(i.key)).reduce((s, i) => s + i.price * i.qty, 0);
+}

@@ -1,48 +1,50 @@
-// Online payments through Razorpay (UPI, cards, net banking, wallets).
-// Live: an order is created and its signature verified server-side by the
-// Supabase Edge Function in supabase/functions/razorpay. Demo: simulated.
+// Online payments (UPI, cards, net banking, wallets) via Razorpay.
+// The server prices the cart, opens the gateway order and verifies the
+// signature; the app only opens Razorpay Checkout. Demo mode simulates it.
 import { api, mode } from './api.js';
-
-const KEY = import.meta.env?.VITE_RAZORPAY_KEY_ID;
-export const paymentsLive = !!KEY && mode === 'live';
+import { brand } from '../config.js';
 
 function loadScript() {
   if (window.Razorpay) return Promise.resolve();
   return new Promise((res, rej) => {
     const s = document.createElement('script');
     s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    s.onload = res; s.onerror = () => rej(new Error('Could not load payment gateway'));
+    s.onload = res;
+    s.onerror = () => rej(new Error('Could not load the payment page. Check your connection.'));
     document.body.appendChild(s);
   });
 }
 
-/** Resolves with { status: 'paid', ref } or rejects if the user dismisses / payment fails. */
-export async function payOnline({ amount, method, user, receipt }) {
-  if (!paymentsLive) {
+/** Resolves with { ref, gateway } once the payment is verified by the server. */
+export async function payOnline({ order, method, user }) {
+  if (mode !== 'live') {
     await new Promise((r) => setTimeout(r, 900));
-    return { status: 'paid', ref: 'demo_' + Date.now().toString(36), gateway: 'demo' };
+    return { ref: 'demo_' + Date.now().toString(36), gateway: 'demo' };
+  }
+  const p = await api.paymentOrder(order);
+  if (p.gateway === 'mock') {
+    const { ref } = await api.verifyPayment({ gateway: 'mock', amount: p.amount });
+    return { ref, gateway: 'mock' };
   }
   await loadScript();
-  const fn = api.client.functions;
-  const { data: rzpOrder, error } = await fn.invoke('razorpay', { body: { action: 'create', amount, receipt } });
-  if (error) throw new Error('Could not start payment');
   return new Promise((resolve, reject) => {
     const rzp = new window.Razorpay({
-      key: KEY,
-      order_id: rzpOrder.id,
-      amount: rzpOrder.amount,
+      key: p.keyId,
+      order_id: p.orderId,
+      amount: Math.round(p.amount * 100),
       currency: 'INR',
-      name: 'BuildRun',
+      name: brand.name,
       prefill: { contact: user.phone, email: user.email || undefined, name: user.name || undefined, method },
-      theme: { color: '#ff385c' },
+      theme: { color: '#ff4f1f' },
       handler: async (resp) => {
-        const { data, error: e } = await fn.invoke('razorpay', { body: { action: 'verify', ...resp } });
-        if (e || !data?.valid) return reject(new Error('Payment could not be verified'));
-        resolve({ status: 'paid', ref: resp.razorpay_payment_id, gatewayOrder: resp.razorpay_order_id, gateway: 'razorpay' });
+        try {
+          const { ref } = await api.verifyPayment(resp);
+          resolve({ ref, gateway: 'razorpay' });
+        } catch (e) { reject(e); }
       },
-      modal: { ondismiss: () => reject(new Error('Payment cancelled')) },
+      modal: { ondismiss: () => reject(new Error('Payment cancelled. You have not been charged.')) },
     });
-    rzp.on('payment.failed', (r) => reject(new Error(r.error?.description || 'Payment failed')));
+    rzp.on('payment.failed', (r) => reject(new Error(r.error?.description || 'Payment failed.')));
     rzp.open();
   });
 }

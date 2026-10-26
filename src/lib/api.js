@@ -1,15 +1,15 @@
 // Data layer with two interchangeable backends:
 //  • demo  — everything persisted in localStorage on the device (no setup).
-//  • live  — Supabase (auth via phone OTP, Postgres tables in supabase/schema.sql).
+//  • live  — REST API in server/ (Express + MongoDB, phone-OTP login).
 // The UI only talks to `api`, so switching is just setting env vars.
-import { createClient } from '@supabase/supabase-js';
 import { products as seedProducts, categories as seedCategories } from '../data/catalog.js';
-import { simulatedStatus, refundDestination } from './orderLogic.js';
+import { simulatedStatus, refundDestination, returnAmount } from './orderLogic.js';
 import { uid } from './format.js';
 
-const URL_ = import.meta.env?.VITE_SUPABASE_URL;
-const KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY;
-export const mode = URL_ && KEY ? 'live' : 'demo';
+// Demo mode keeps everything on the device (no server). Live mode talks to
+// the MongoDB-backed API in server/. VITE_API_URL="" means same origin.
+const API_URL = import.meta.env?.VITE_API_URL;
+export const mode = API_URL !== undefined && import.meta.env?.VITE_DEMO !== '1' ? 'live' : 'demo';
 export const DEMO_OTP = '123456';
 
 /* ------------------------------ demo backend ------------------------------ */
@@ -114,6 +114,8 @@ const demo = {
   // admin
   async adminOrders() { return this._tick().sort((a, b) => b.createdAt - a.createdAt); },
   async adminQuotes() { return ls.get('quotes', []); },
+  async adminProducts() { return seedProducts; },
+  async adminUpdateProduct() { throw new Error('Product editing needs the live server.'); },
   async adminSetStatus(id, status) {
     const o = this._patch(id, (o) => ({
       ...o, status,
@@ -126,78 +128,88 @@ const demo = {
   },
 };
 
-export function returnAmount(o) {
-  const ids = new Set(o.returnRequest?.itemIds || []);
-  return o.items.filter((i) => ids.has(i.key)).reduce((s, i) => s + i.price * i.qty, 0);
-}
+export { returnAmount };
 
 /* ------------------------------ live backend ------------------------------ */
-let sb = null;
+// REST API in server/ (Express + MongoDB). Same-origin when the server also
+// serves the site; set VITE_API_URL for the mobile apps (absolute https URL).
+const BASE = (API_URL || '').replace(/\/$/, '') + '/api';
+const TOKEN_KEY = 'br:token';
+const token = {
+  get: () => { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } },
+  set: (t) => { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ } },
+};
+
+async function http(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  const t = token.get();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  let res;
+  try {
+    res = await fetch(BASE + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  } catch {
+    throw new Error('You appear to be offline. Check your connection and try again.');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && t) token.set(null);
+  if (!res.ok) throw Object.assign(new Error(data.error || 'Something went wrong.'), { status: res.status, data });
+  return data;
+}
+
+const orderPayload = (order) => ({
+  items: order.items.map((i) => ({ productId: i.productId, variantId: i.variantId, qty: i.qty })),
+  coupon: order.bill.coupon || order.couponCode || '',
+  useWallet: order.bill.wallet > 0,
+});
+
 const live = {
-  get client() { return (sb ||= createClient(URL_, KEY)); },
-  async _profile(authUser) {
-    if (!authUser) return null;
-    const { data } = await this.client.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
-    return { id: authUser.id, phone: authUser.phone, name: data?.name || '', email: data?.email || '', gstin: data?.gstin || '', businessName: data?.business_name || '', isAdmin: !!data?.is_admin };
+  http,
+  async getSession() {
+    if (!token.get()) return null;
+    try { return await http('GET', '/me'); } catch { return null; }
   },
-  async getSession() { const { data } = await this.client.auth.getSession(); return this._profile(data.session?.user); },
-  async sendOtp(phone) { const { error } = await this.client.auth.signInWithOtp({ phone }); if (error) throw error; return { ok: true }; },
-  async verifyOtp(phone, token) {
-    const { data, error } = await this.client.auth.verifyOtp({ phone, token, type: 'sms' });
-    if (error) throw new Error('Incorrect or expired code.');
-    return this._profile(data.user);
+  sendOtp: (phone) => http('POST', '/auth/otp', { phone }),
+  async verifyOtp(phone, code) {
+    const { token: t, user } = await http('POST', '/auth/verify', { phone, code });
+    token.set(t);
+    return user;
   },
-  async signOut() { await this.client.auth.signOut(); },
-  async updateProfile(user, p) {
-    const { error } = await this.client.from('profiles').upsert({ id: user.id, phone: user.phone, name: p.name ?? user.name, email: p.email ?? user.email, gstin: p.gstin ?? user.gstin, business_name: p.businessName ?? user.businessName });
-    if (error) throw error;
-    return { ...user, ...p };
-  },
-  async listProducts() {
-    const { data, error } = await this.client.from('products').select('*').eq('active', true);
-    if (error || !data?.length) return seedProducts;
-    return data.map((r) => ({ ...r.data, id: r.id, categoryId: r.category_id, inStock: r.in_stock }));
-  },
-  async listCategories() {
-    const { data, error } = await this.client.from('categories').select('*').order('sort');
-    if (error || !data?.length) return seedCategories;
-    return data.map((r) => ({ ...r.data, id: r.id }));
-  },
-  async listAddresses(user) {
-    const { data } = await this.client.from('addresses').select('*').eq('user_id', user.id).order('created_at');
-    return (data || []).map((r) => ({ ...r.data, id: r.id }));
-  },
-  async saveAddress(user, a) {
-    const { id, ...rest } = a;
-    const row = { user_id: user.id, data: rest, ...(id ? { id } : {}) };
-    const { data, error } = await this.client.from('addresses').upsert(row).select().single();
-    if (error) throw error;
-    return { ...data.data, id: data.id };
-  },
-  async deleteAddress(_u, id) { await this.client.from('addresses').delete().eq('id', id); },
-  _row: (r) => ({ ...r.data, id: r.id, userId: r.user_id, status: r.status, createdAt: new Date(r.created_at).getTime(), deliveredAt: r.delivered_at ? new Date(r.delivered_at).getTime() : null }),
-  async listOrders(user) {
-    const { data } = await this.client.from('orders').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-    return (data || []).map(this._row);
-  },
-  async getOrder(_u, id) { const { data } = await this.client.from('orders').select('*').eq('id', id).maybeSingle(); return data ? this._row(data) : null; },
-  async createOrder(user, order) {
-    // Server-side function validates prices/serviceability and inserts atomically.
-    const { data, error } = await this.client.rpc('place_order', { payload: order });
-    if (error) throw error;
-    return this._row(data);
-  },
-  async cancelOrder(_u, id, reason) { const { data, error } = await this.client.rpc('cancel_order', { order_id: id, reason }); if (error) throw error; return this._row(data); },
-  async requestReturn(_u, id, req) { const { data, error } = await this.client.rpc('request_return', { order_id: id, req }); if (error) throw error; return this._row(data); },
-  async wallet(user) {
-    const { data } = await this.client.from('wallet_txns').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-    const txns = (data || []).map((t) => ({ id: t.id, amount: t.amount, note: t.note, at: new Date(t.created_at).getTime() }));
-    return { balance: txns.reduce((s, t) => s + t.amount, 0), txns };
-  },
-  async submitQuote(user, q) { const { error } = await this.client.from('quotes').insert({ user_id: user?.id ?? null, data: q }); if (error) throw error; return q; },
-  async adminOrders() { const { data } = await this.client.from('orders').select('*').order('created_at', { ascending: false }).limit(200); return (data || []).map(this._row); },
-  async adminQuotes() { const { data } = await this.client.from('quotes').select('*').order('created_at', { ascending: false }); return (data || []).map((r) => ({ ...r.data, id: r.id, at: new Date(r.created_at).getTime(), status: r.status })); },
-  async adminSetStatus(id, status) { const { data, error } = await this.client.rpc('admin_set_status', { order_id: id, new_status: status }); if (error) throw error; return this._row(data); },
+  async signOut() { token.set(null); },
+  updateProfile: (_u, patch) => http('PATCH', '/me', patch),
+
+  async _catalog() { return (this._cat ||= http('GET', '/catalog').catch((e) => { this._cat = null; throw e; })); },
+  async listProducts() { try { return (await this._catalog()).products; } catch { return seedProducts; } },
+  async listCategories() { try { return (await this._catalog()).categories; } catch { return seedCategories; } },
+
+  listAddresses: () => http('GET', '/addresses'),
+  saveAddress: (_u, a) => http('POST', '/addresses', a),
+  deleteAddress: (_u, id) => http('DELETE', `/addresses/${id}`),
+
+  listOrders: () => http('GET', '/orders'),
+  getOrder: (_u, id) => http('GET', `/orders/${encodeURIComponent(id)}`).catch((e) => (e.status === 404 ? null : Promise.reject(e))),
+  createOrder: (_u, order) => http('POST', '/orders', {
+    ...orderPayload(order),
+    addressId: order.address.id,
+    slot: order.slot,
+    note: order.note,
+    gst: !!order.gstin,
+    payment: { method: order.payment.method, ref: order.payment.ref },
+    expectedTotal: order.bill.total,
+  }),
+  cancelOrder: (_u, id, reason) => http('POST', `/orders/${id}/cancel`, { reason }),
+  requestReturn: (_u, id, req) => http('POST', `/orders/${id}/return`, req),
+  wallet: () => http('GET', '/wallet'),
+  submitQuote: (_u, q) => http('POST', '/quotes', q),
+
+  // payments: server prices the cart and opens a gateway order
+  paymentOrder: (order) => http('POST', '/payments/order', orderPayload(order)),
+  verifyPayment: (body) => http('POST', '/payments/verify', body),
+
+  adminOrders: () => http('GET', '/admin/orders'),
+  adminQuotes: () => http('GET', '/admin/quotes'),
+  adminSetStatus: (id, status, extra = {}) => http('POST', `/admin/orders/${id}/status`, { status, ...extra }),
+  adminProducts: () => http('GET', '/admin/products'),
+  adminUpdateProduct: (id, patch) => http('PATCH', `/admin/products/${id}`, patch),
 };
 
 export const api = mode === 'live' ? live : demo;

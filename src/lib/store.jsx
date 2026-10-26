@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
-import { isServiceable } from './pricing.js';
+import { isServiceable, unitPrice } from './pricing.js';
 import { tap } from './native.js';
 
 const Ctx = createContext(null);
@@ -59,7 +59,7 @@ export function StoreProvider({ children }) {
           const p = productMap[l.productId];
           const v = p?.variants.find((x) => x.id === l.variantId);
           if (!p || !v) return null;
-          return { key, product: p, variant: v, qty: l.qty, price: v.price, mrp: v.mrp, heavy: p.heavy };
+          return { key, product: p, variant: v, qty: l.qty, price: unitPrice(v, l.qty), mrp: v.mrp, heavy: p.heavy };
         })
         .filter(Boolean),
     [cart, productMap],

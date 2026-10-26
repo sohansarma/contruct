@@ -5,6 +5,7 @@ import { useStore } from '../lib/store.jsx';
 import { money, pct } from '../lib/format.js';
 import { brand, rules } from '../config.js';
 import { categoryById } from '../data/catalog.js';
+import ProductIllustration from './ProductArt.jsx';
 import { currentPosition, pincodeFromPosition } from '../lib/native.js';
 import { mode } from '../lib/api.js';
 import { useI18n } from '../lib/i18n.jsx';
@@ -14,25 +15,27 @@ export function Icon({ name, size = 20, ...rest }) {
   return <C size={size} strokeWidth={1.8} {...rest} />;
 }
 
-export function ProductArt({ product, size = 64, showBadges = true }) {
+export function ProductArt({ product, variant, showBadges = true }) {
   const cat = categoryById(product.categoryId);
-  const v = product.variants[0];
+  const v = variant || product.variants[0];
   const off = pct(v.price, v.mrp);
   const tint = cat?.tint || '#8e8e93';
+  const label = product.variants.length > 1 && !variant ? '' : shortPack(v.label || product.unit);
   return (
-    <div className="art" style={{ background: `linear-gradient(145deg, ${tint}22, ${tint}0d)` }}>
+    <div className="art" style={{ background: `radial-gradient(120% 90% at 50% 15%, #ffffff 0%, ${tint}1f 100%)` }}>
       {product.image ? (
         <img src={product.image} alt={product.name} loading="lazy" />
       ) : (
-        <div style={{ color: tint, display: 'grid', placeItems: 'center', gap: 6 }}>
-          <Icon name={cat?.icon} size={size} />
-        </div>
+        <ProductIllustration kind={product.kind} color={product.color} label={label} />
       )}
-      {showBadges && product.tag && <span className="tag">{product.tag}</span>}
+      {showBadges && (product.deal ? <span className="tag deal">Deal</span> : product.tag ? <span className="tag">{product.tag}</span> : product.isNew ? <span className="tag">New</span> : null)}
       {showBadges && off >= 5 && <span className="off">{off}% off</span>}
     </div>
   );
 }
+
+// "50 kg bag" -> "50 kg", "8' × 4' sheet" -> "8' × 4'"
+const shortPack = (s = '') => s.replace(/\b(bag|sheet|coil|length|each)\b/gi, '').trim().slice(0, 12);
 
 export function Stepper({ qty, onChange, large }) {
   return (
@@ -81,6 +84,7 @@ export function ProductCard({ product }) {
       <div className="meta">{product.brand}</div>
       <div className="name clamp2">{product.name}</div>
       <div className="meta">{many ? `${product.variants.length} options` : product.unit}</div>
+      {v.tiers?.length > 0 && <div className="bulk-hint">{money(v.tiers[v.tiers.length - 1].price)} each on {v.tiers[v.tiers.length - 1].min}+</div>}
       <div className="foot">
         <div>
           <div className="price">{many && <span className="xs muted" style={{ fontWeight: 500 }}>from </span>}{money(v.price)}</div>
@@ -293,6 +297,7 @@ export function Footer() {
         <Link to="/categories">All categories</Link>
         <Link to="/price-list">Price list</Link>
         <Link to="/bulk">Bulk quote</Link>
+        <Link to="/calculator">Material calculator</Link>
       </div>
       <div>
         <h4>Help</h4>

@@ -352,8 +352,19 @@ table.t td.num, table.t th.num { text-align: right; white-space: nowrap; }
 @media (min-width: 900px) {
   .hero { display: grid; grid-template-columns: 1fr 340px; gap: 32px; align-items: center; }
   .hero-art { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; transform: rotate(-6deg); }
-  .hero-art > div { aspect-ratio: 1; border-radius: 24px; display: grid; place-items: center; animation: float 6s ease-in-out infinite; }
-  .hero-art > div:nth-child(2n) { animation-delay: -3s; }
+  .hero-art > a { aspect-ratio: 1; border-radius: 24px; display: grid; place-items: center; animation: float 6s ease-in-out infinite; }
+  .hero-art > a:nth-child(2n) { animation-delay: -3s; }
 }
 @keyframes float { 50% { transform: translateY(-8px); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* product art & bulk pricing */
+.art { border: 1px solid var(--hairline); }
+.art svg { filter: drop-shadow(0 6px 10px rgba(0,0,0,.08)); }
+.art .tag.deal { background: var(--accent); color: #fff; }
+.bulk-hint { font-size: 11px; font-weight: 600; color: var(--green); background: var(--green-soft); border-radius: 6px; padding: 3px 6px; align-self: flex-start; }
+.tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.tiers > div { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--hairline); background: var(--surface-solid); }
+.tiers > div.on { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+.qty-presets { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (prefers-color-scheme: dark) { .art { background: radial-gradient(120% 90% at 50% 15%, #2c2c2e 0%, #1c1c1e 100%) !important; } }
