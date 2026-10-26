@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { CartBar, Footer, Header, RequireAuth, TabBar, Toast } from './components/ui.jsx';
 import { Categories, Category, Home, NotFound, Product, Search } from './pages/Shop.jsx';
 import { Cart, Checkout } from './pages/Checkout.jsx';
@@ -46,6 +46,7 @@ export default function App() {
           <Route path="/price-list" element={<PriceList />} />
           <Route path="/price-list/:id" element={<PriceList />} />
           <Route path="/admin" element={auth(<Admin />)} />
+          <Route path="/hi/*" element={<Navigate to="/" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

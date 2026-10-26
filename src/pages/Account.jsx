@@ -11,6 +11,7 @@ import { isServiceable } from '../lib/pricing.js';
 import { STATUS } from '../lib/orderLogic.js';
 import { StatusPill, methodLabel } from './Orders.jsx';
 import { NotFound } from './Shop.jsx';
+import { LANGS, useI18n } from '../lib/i18n.jsx';
 
 export function Login() {
   const [params] = useSearchParams();
@@ -24,6 +25,7 @@ export function Login() {
   const [busy, setBusy] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const refs = useRef([]);
+  const { t } = useI18n();
   useEffect(() => { if (user) navigate(next, { replace: true }); }, [user, next, navigate]);
   useEffect(() => { if (resendIn <= 0) return; const t = setTimeout(() => setResendIn(resendIn - 1), 1000); return () => clearTimeout(t); }, [resendIn]);
 
@@ -58,19 +60,19 @@ export function Login() {
         <img src="/icon.svg" alt="" width="52" style={{ borderRadius: 14, marginBottom: 16 }} />
         {stage === 'phone' ? (
           <form className="col" style={{ gap: 14 }} onSubmit={send}>
-            <h1 style={{ fontSize: 28 }}>Log in or sign up</h1>
+            <h1 style={{ fontSize: 28 }}>{t('Log in or sign up')}</h1>
             <p className="muted">We’ll text you a 6-digit code. No passwords.</p>
             <div className="search-pill" style={{ height: 56, boxShadow: 'none' }}>
               <span style={{ fontWeight: 600 }}>+91</span>
               <input inputMode="numeric" autoComplete="tel-national" maxLength={10} placeholder="Mobile number" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} autoFocus aria-label="Mobile number" />
             </div>
             {err && <div className="small red">{err}</div>}
-            <button className="btn primary block" disabled={busy || phone.length !== 10}>{busy ? 'Sending…' : 'Continue'}</button>
+            <button className="btn primary block" disabled={busy || phone.length !== 10}>{busy ? 'Sending…' : t('Continue')}</button>
             <p className="xs muted center">By continuing you agree to our <Link className="link" to="/policy/terms">Terms</Link> and <Link className="link" to="/policy/privacy">Privacy Policy</Link>.</p>
           </form>
         ) : (
           <div className="col" style={{ gap: 14 }}>
-            <h1 style={{ fontSize: 28 }}>Enter code</h1>
+            <h1 style={{ fontSize: 28 }}>{t('Enter code')}</h1>
             <p className="muted">Sent to +91 {phone}. <button className="link" onClick={() => setStage('phone')}>Change</button></p>
             {mode === 'demo' && <div className="banner info small"><Icon name="FlaskConical" size={16} />Demo mode: the code is {DEMO_OTP}</div>}
             <div className="otp">
@@ -93,6 +95,7 @@ export function Login() {
 export function Account() {
   const { user, setUser, ready } = useStore();
   const [wallet, setWallet] = useState(null);
+  const { t, lang, setLang } = useI18n();
   useEffect(() => { if (user) api.wallet(user).then(setWallet); }, [user]);
   if (!ready) return null;
   const links = [
@@ -127,24 +130,27 @@ export function Account() {
         <div className="glass card" style={{ padding: 22, marginBottom: 18 }}>
           <h2>Your account</h2>
           <p className="muted" style={{ margin: '6px 0 14px' }}>Sign in to place orders, track deliveries and download invoices.</p>
-          <Link to="/login" className="btn primary">Log in or sign up</Link>
+          <Link to="/login" className="btn primary">{t('Log in or sign up')}</Link>
         </div>
       )}
       {user && (
         <div className="glass card list" style={{ marginBottom: 18 }}>
           {links.map(([to, icon, label, extra]) => (
-            <Link key={to} to={to}><span className="ico"><Icon name={icon} size={18} /></span><span className="grow">{label}</span>{extra && <span className="small muted">{extra}</span>}<Icon name="ChevronRight" size={18} className="faint" /></Link>
+            <Link key={to} to={to}><span className="ico"><Icon name={icon} size={18} /></span><span className="grow">{t(label)}</span>{extra && <span className="small muted">{extra}</span>}<Icon name="ChevronRight" size={18} className="faint" /></Link>
           ))}
           {user.isAdmin && <Link to="/admin"><span className="ico"><Icon name="LayoutDashboard" size={18} /></span><span className="grow">Admin dashboard</span><Icon name="ChevronRight" size={18} className="faint" /></Link>}
         </div>
       )}
       <div className="glass card list" style={{ marginBottom: 18 }}>
         {help.map(([to, icon, label]) => (
-          <Link key={to} to={to}><span className="ico"><Icon name={icon} size={18} /></span><span className="grow">{label}</span><Icon name="ChevronRight" size={18} className="faint" /></Link>
+          <Link key={to} to={to}><span className="ico"><Icon name={icon} size={18} /></span><span className="grow">{t(label)}</span><Icon name="ChevronRight" size={18} className="faint" /></Link>
         ))}
-        <a href={`tel:${brand.supportPhone}`}><span className="ico"><Icon name="Phone" size={18} /></span><span className="grow">Call support</span><span className="small muted">7 AM – 10 PM</span></a>
+        <div><span className="ico"><Icon name="Languages" size={18} /></span><span className="grow">{t('Language')}</span>
+          <div className="seg" style={{ minWidth: 170 }}>{LANGS.map(([k, l]) => <button key={k} className={lang === k ? 'on' : ''} onClick={() => setLang(k)}>{l}</button>)}</div>
+        </div>
+        <a href={`tel:${brand.supportPhone}`}><span className="ico"><Icon name="Phone" size={18} /></span><span className="grow">{t('Call support')}</span><span className="small muted">7 AM – 10 PM</span></a>
       </div>
-      {user && <button className="btn danger block" onClick={async () => { await api.signOut(); setUser(null); }}>Log out</button>}
+      {user && <button className="btn danger block" onClick={async () => { await api.signOut(); setUser(null); }}>{t('Log out')}</button>}
       <p className="xs faint center" style={{ marginTop: 16 }}>{brand.name} v1.0 · {mode === 'demo' ? 'Demo mode' : 'Live'}</p>
     </div>
   );

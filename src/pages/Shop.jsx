@@ -6,6 +6,7 @@ import { money, pct } from '../lib/format.js';
 import { brand, coupons, rules } from '../config.js';
 import { share } from '../lib/native.js';
 import { searchProducts } from '../lib/search.js';
+import { useI18n } from '../lib/i18n.jsx';
 
 const usps = [
   ['Timer', `Delivered in ${rules.etaMin}–${rules.etaMax} min`],
@@ -19,6 +20,7 @@ export function Home() {
   const [q, setQ] = useState('');
   const [locOpen, setLocOpen] = useState(false);
   const navigate = useNavigate();
+  const { t, lang } = useI18n();
   const best = products.filter((p) => p.tag === 'Bestseller');
   const rails = ['cement', 'painting', 'plywood', 'wires'];
 
@@ -26,16 +28,16 @@ export function Home() {
     <div className="page">
       <section className="hero glass">
         <div>
-        <h1>Site running short? <span className="accent">We’ll be there within the hour.</span></h1>
-        <p>Cement, plywood, paint, electricals, plumbing and hardware from the brands you trust, delivered to your site anywhere in {brand.city}.</p>
+        <h1>{t('Site running short?')} <span className="accent">{t('We’ll be there within the hour.')}</span></h1>
+        <p>{lang === 'en' ? `Cement, plywood, paint, electricals, plumbing and hardware from the brands you trust, delivered to your site anywhere in ${brand.city}.` : t('hero.sub')}</p>
         <form className="search-pill" onSubmit={(e) => { e.preventDefault(); navigate(`/search?q=${encodeURIComponent(q)}`); }}>
           <Icon name="Search" size={20} className="faint" />
-          <input placeholder="Search 'cement', 'FRLS wire', '18 mm ply'…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search products" />
+          <input placeholder={lang === 'en' ? "Search 'cement', 'FRLS wire', '18 mm ply'…" : t('search.placeholder')} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search products" />
           <button className="go" aria-label="Search"><Icon name="ArrowRight" size={18} /></button>
         </form>
         {!location && (
           <button className="chip" style={{ marginTop: 14 }} onClick={() => setLocOpen(true)}>
-            <Icon name="MapPin" size={15} /> Check delivery to your site
+            <Icon name="MapPin" size={15} /> {t('Check delivery to your site')}
           </button>
         )}
         {location && !location.serviceable && (
@@ -65,12 +67,12 @@ export function Home() {
       </div>
 
       <section className="section">
-        <div className="section-head"><h2>Shop by category</h2><Link to="/categories">See all</Link></div>
+        <div className="section-head"><h2>{t('Shop by category')}</h2><Link to="/categories">{t('See all')}</Link></div>
         <CategoryGrid categories={categories.slice(0, 12)} />
       </section>
 
       <section className="section">
-        <div className="section-head"><h2>Offers</h2></div>
+        <div className="section-head"><h2>{t('Offers')}</h2></div>
         <div className="offers">
           {coupons.map((c, i) => (
             <div key={c.code} className="offer" style={{ background: ['linear-gradient(135deg,#ff4f1f,#ff385c)', 'linear-gradient(135deg,#5e5ce6,#0a84ff)', 'linear-gradient(135deg,#1f9d55,#30d158)'][i % 3] }}>
@@ -82,7 +84,7 @@ export function Home() {
       </section>
 
       <section className="section">
-        <div className="section-head"><h2>Bestsellers</h2></div>
+        <div className="section-head"><h2>{t('Bestsellers')}</h2></div>
         <div className="p-rail">{best.map((p) => <ProductCard key={p.id} product={p} />)}</div>
       </section>
 
@@ -91,7 +93,7 @@ export function Home() {
         if (!c) return null;
         return (
           <section className="section" key={cid}>
-            <div className="section-head"><h2>{c.name}</h2><Link to={`/c/${cid}`}>See all</Link></div>
+            <div className="section-head"><h2>{c.name}</h2><Link to={`/c/${cid}`}>{t('See all')}</Link></div>
             <div className="p-rail">{products.filter((p) => p.categoryId === cid).map((p) => <ProductCard key={p.id} product={p} />)}</div>
           </section>
         );
@@ -99,9 +101,9 @@ export function Home() {
 
       <section className="section">
         <div className="glass card" style={{ padding: 22, display: 'grid', gap: 14 }}>
-          <div className="row"><Icon name="Truck" size={28} className="accent" /><h2>Buying for a big project?</h2></div>
+          <div className="row"><Icon name="Truck" size={28} className="accent" /><h2>{t('Buying for a big project?')}</h2></div>
           <p className="muted">Share your material list and we’ll call back with a quote, usually within the hour. Scheduled truck deliveries available.</p>
-          <div><Link className="btn dark" to="/bulk">Get a bulk quote</Link></div>
+          <div><Link className="btn dark" to="/bulk">{t('Get a bulk quote')}</Link></div>
         </div>
       </section>
       <LocationSheet open={locOpen} onClose={() => setLocOpen(false)} />
@@ -126,9 +128,10 @@ export function CategoryGrid({ categories }) {
 
 export function Categories() {
   const { categories } = useStore();
+  const { t } = useI18n();
   return (
     <div className="page">
-      <h1 style={{ marginBottom: 6 }}>All categories</h1>
+      <h1 style={{ marginBottom: 6 }}>{t('All categories')}</h1>
       <p className="muted" style={{ marginBottom: 20 }}>Everything for structure, finishing and fit-out.</p>
       <div className="col" style={{ gap: 10 }}>
         {categories.map((c) => (
@@ -216,6 +219,7 @@ export function Product() {
   const { productMap, products, qtyOf, setQty, categories, location, notify } = useStore();
   const p = productMap[id];
   const [vid, setVid] = useState(null);
+  const { t } = useI18n();
   useEffect(() => { setVid(null); window.scrollTo(0, 0); }, [id]);
   if (!p) return <NotFound />;
   const v = p.variants.find((x) => x.id === vid) || p.variants[0];
@@ -244,11 +248,11 @@ export function Product() {
             <span className="price" style={{ fontSize: 28 }}>{money(v.price)}</span>
             {v.mrp > v.price && <><span className="strike">MRP {money(v.mrp)}</span><span className="green small" style={{ fontWeight: 600 }}>{off}% off</span></>}
           </div>
-          <div className="xs muted" style={{ marginTop: -10 }}>Inclusive of all taxes</div>
+          <div className="xs muted" style={{ marginTop: -10 }}>{t('Inclusive of all taxes')}</div>
 
           {p.variants.length > 1 && (
             <div className="col">
-              <div className="small" style={{ fontWeight: 600 }}>Choose option</div>
+              <div className="small" style={{ fontWeight: 600 }}>{t('Choose option')}</div>
               <div className="variant-row">
                 {p.variants.map((x) => (
                   <button key={x.id} className={`variant ${x.id === v.id ? 'on' : ''}`} onClick={() => setVid(x.id)}>
@@ -264,7 +268,7 @@ export function Product() {
             {qty > 0 ? (
               <>
                 <Stepper large qty={qty} onChange={(n) => setQty(p.id, v.id, n)} />
-                <Link to="/cart" className="btn dark grow">Go to cart · {money(v.price * qty)}</Link>
+                <Link to="/cart" className="btn dark grow">{t('Go to cart')} · {money(v.price * qty)}</Link>
               </>
             ) : (
               <div className="grow"><AddControl large product={p} variant={v} /></div>
@@ -280,7 +284,7 @@ export function Product() {
 
           {Object.keys(p.specs).length > 0 && (
             <div>
-              <h3 style={{ marginBottom: 10 }}>Details</h3>
+              <h3 style={{ marginBottom: 10 }}>{t('Details')}</h3>
               <dl className="specs">
                 <dt>Brand</dt><dd>{p.brand}</dd>
                 {Object.entries(p.specs).map(([k, val]) => <FragmentRow key={k} k={k} v={val} />)}
@@ -291,7 +295,7 @@ export function Product() {
       </div>
       {similar.length > 0 && (
         <section className="section">
-          <div className="section-head"><h2>You may also need</h2></div>
+          <div className="section-head"><h2>{t('You may also need')}</h2></div>
           <div className="p-rail">{similar.map((x) => <ProductCard key={x.id} product={x} />)}</div>
         </section>
       )}

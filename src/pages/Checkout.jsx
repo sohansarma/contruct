@@ -7,6 +7,7 @@ import { codAllowed, computeBill, isServiceable } from '../lib/pricing.js';
 import { coupons, rules } from '../config.js';
 import { api } from '../lib/api.js';
 import { payOnline } from '../lib/payments.js';
+import { useI18n } from '../lib/i18n.jsx';
 
 function useAccountData(user) {
   const [addresses, setAddresses] = useState([]);
@@ -22,16 +23,17 @@ function useAccountData(user) {
 }
 
 export function BillCard({ bill }) {
+  const { t } = useI18n();
   return (
     <div className="bill glass">
-      <h3>Bill details</h3>
-      <div className="r"><span>Item total</span><span>{bill.mrpTotal > bill.itemTotal && <span className="strike small" style={{ marginRight: 6 }}>{money(bill.mrpTotal)}</span>}{money(bill.itemTotal)}</span></div>
-      <div className="r"><span>Delivery fee</span><span>{bill.delivery ? money(bill.delivery) : <span className="green">FREE</span>}</span></div>
-      <div className="r"><span>Handling fee</span><span>{money(bill.handling)}</span></div>
-      {bill.loading > 0 && <div className="r"><span>Loading & unloading</span><span>{money(bill.loading)}</span></div>}
+      <h3>{t('Bill details')}</h3>
+      <div className="r"><span>{t('Item total')}</span><span>{bill.mrpTotal > bill.itemTotal && <span className="strike small" style={{ marginRight: 6 }}>{money(bill.mrpTotal)}</span>}{money(bill.itemTotal)}</span></div>
+      <div className="r"><span>{t('Delivery fee')}</span><span>{bill.delivery ? money(bill.delivery) : <span className="green">{t('FREE')}</span>}</span></div>
+      <div className="r"><span>{t('Handling fee')}</span><span>{money(bill.handling)}</span></div>
+      {bill.loading > 0 && <div className="r"><span>{t('Loading & unloading')}</span><span>{money(bill.loading)}</span></div>}
       {bill.discount > 0 && <div className="r green"><span>Coupon {bill.coupon}</span><span>−{money(bill.discount)}</span></div>}
       {bill.wallet > 0 && <div className="r green"><span>Credit applied</span><span>−{money(bill.wallet)}</span></div>}
-      <div className="r total"><span>To pay</span><span>{money(bill.total)}</span></div>
+      <div className="r total"><span>{t('To pay')}</span><span>{money(bill.total)}</span></div>
       {bill.savings > 0 && <div className="banner ok small"><Icon name="PiggyBank" size={18} className="green" />You save {money(bill.savings)} on this order</div>}
     </div>
   );
@@ -43,15 +45,16 @@ export function Cart() {
   const [couponOpen, setCouponOpen] = useState(false);
   const { orderCount } = useAccountData(user);
   const navigate = useNavigate();
+  const { t } = useI18n();
   const bill = computeBill(lines, { coupon, isFirstOrder: orderCount === 0 });
   useEffect(() => { sessionStorage.setItem('br:coupon', bill.coupon || ''); }, [bill.coupon]);
 
   if (!lines.length) {
-    return <div className="page"><BackHeader title="Cart" /><Empty icon="ShoppingBag" title="Your cart is empty" text="Add materials and they’ll be at your site in about an hour." action={<Link className="btn primary" to="/">Start shopping</Link>} /></div>;
+    return <div className="page"><BackHeader title={t('Cart')} /><Empty icon="ShoppingBag" title={t('Your cart is empty')} text="Add materials and they’ll be at your site in about an hour." action={<Link className="btn primary" to="/">{t('Start shopping')}</Link>} /></div>;
   }
   return (
     <div className="page">
-      <BackHeader title="Cart" right={<button className="small muted" onClick={clearCart}>Clear</button>} />
+      <BackHeader title={t('Cart')} right={<button className="small muted" onClick={clearCart}>{t('Clear')}</button>} />
       <div className="two-col">
         <div className="col" style={{ gap: 14 }}>
           {bill.freeDeliveryGap > 0 && (
@@ -79,7 +82,7 @@ export function Cart() {
           <button className="glass card row" style={{ padding: 14, width: '100%' }} onClick={() => setCouponOpen(true)}>
             <Icon name="TicketPercent" className="accent" />
             <span className="grow" style={{ textAlign: 'left' }}>
-              {bill.coupon ? <><b>{bill.coupon}</b> applied</> : 'Apply coupon'}
+              {bill.coupon ? <><b>{bill.coupon}</b> applied</> : t('Apply coupon')}
               {bill.couponError && <div className="xs red">{bill.couponError}</div>}
             </span>
             {bill.coupon ? <span className="small red" onClick={(e) => { e.stopPropagation(); setCoupon(''); }}>Remove</span> : <Icon name="ChevronRight" className="faint" />}
@@ -88,7 +91,7 @@ export function Cart() {
         <div className="col sticky" style={{ gap: 14 }}>
           <BillCard bill={bill} />
           <button className="btn primary block" onClick={() => navigate(user ? '/checkout' : '/login?next=/checkout')}>
-            {user ? 'Proceed to checkout' : 'Sign in to checkout'} <Icon name="ArrowRight" size={18} />
+            {t(user ? 'Proceed to checkout' : 'Sign in to checkout')} <Icon name="ArrowRight" size={18} />
           </button>
           <p className="xs muted center">No minimum order. Prices include GST.</p>
         </div>
@@ -196,6 +199,7 @@ export function Checkout() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (addrId || !addresses.length) return;
@@ -251,11 +255,11 @@ export function Checkout() {
 
   return (
     <div className="page">
-      <BackHeader title="Checkout" />
+      <BackHeader title={t('Checkout')} />
       <div className="two-col">
         <div className="col" style={{ gap: 18 }}>
           <section className="glass card" style={{ padding: 16 }}>
-            <div className="row between" style={{ marginBottom: 12 }}><h3>Deliver to</h3>{addresses.length > 0 && <button className="small accent" onClick={() => setAdding(true)}>+ New address</button>}</div>
+            <div className="row between" style={{ marginBottom: 12 }}><h3>{t('Deliver to')}</h3>{addresses.length > 0 && <button className="small accent" onClick={() => setAdding(true)}>+ New address</button>}</div>
             {addresses.length === 0 && !adding && <AddressForm user={user} onSaved={(a) => { setAddresses([...addresses, a]); setAddrId(a.id); }} />}
             <div className="col">
               {addresses.map((a) => (
@@ -272,10 +276,10 @@ export function Checkout() {
           </section>
 
           <section className="glass card" style={{ padding: 16 }}>
-            <h3 style={{ marginBottom: 12 }}>Delivery time</h3>
+            <h3 style={{ marginBottom: 12 }}>{t('Delivery time')}</h3>
             <div className="seg" style={{ marginBottom: 12 }}>
               <button className={slotMode === 'asap' ? 'on' : ''} onClick={() => setSlotMode('asap')}>Express · {rules.etaMin}–{rules.etaMax} min</button>
-              <button className={slotMode === 'later' ? 'on' : ''} onClick={() => setSlotMode('later')}>Schedule</button>
+              <button className={slotMode === 'later' ? 'on' : ''} onClick={() => setSlotMode('later')}>{t('Schedule')}</button>
             </div>
             {slotMode === 'later' && (
               <div className="col">
@@ -290,7 +294,7 @@ export function Checkout() {
           </section>
 
           <section className="glass card" style={{ padding: 16 }}>
-            <h3 style={{ marginBottom: 12 }}>Payment</h3>
+            <h3 style={{ marginBottom: 12 }}>{t('Payment')}</h3>
             {wallet.balance > 0 && (
               <label className="radio" style={{ marginBottom: 10 }}>
                 <input type="checkbox" className="check" checked={useWallet} onChange={(e) => setUseWallet(e.target.checked)} />
@@ -326,7 +330,7 @@ export function Checkout() {
           <BillCard bill={bill} />
           {err && <div className="banner warn small"><Icon name="CircleAlert" size={18} />{err}</div>}
           <button className="btn primary block" onClick={place} disabled={busy || !addr}>
-            {busy ? 'Placing order…' : payMethod === 'cod' ? `Place order · ${money(bill.total)}` : bill.total === 0 ? 'Place order' : `Pay ${money(bill.total)}`}
+            {busy ? 'Placing order…' : payMethod === 'cod' ? `${t('Place order')} · ${money(bill.total)}` : bill.total === 0 ? t('Place order') : `${t('Pay')} ${money(bill.total)}`}
           </button>
           <p className="xs muted center">By placing this order you agree to our <Link className="link" to="/policy/terms">Terms</Link> and <Link className="link" to="/policy/refund">Return policy</Link>. Cancel free within {rules.cancelWindowMin} minutes.</p>
         </div>

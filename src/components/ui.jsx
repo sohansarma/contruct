@@ -7,6 +7,7 @@ import { brand, rules } from '../config.js';
 import { categoryById } from '../data/catalog.js';
 import { currentPosition, pincodeFromPosition } from '../lib/native.js';
 import { mode } from '../lib/api.js';
+import { useI18n } from '../lib/i18n.jsx';
 
 export function Icon({ name, size = 20, ...rest }) {
   const C = Icons[name] || Icons.Box;
@@ -52,7 +53,8 @@ export function AddControl({ product, variant, large }) {
   const v = variant || product.variants[0];
   const qty = qtyOf(product.id, v.id);
   const navigate = useNavigate();
-  if (!product.inStock) return <span className="small faint">Out of stock</span>;
+  const { t } = useI18n();
+  if (!product.inStock) return <span className="small faint">{t('Out of stock')}</span>;
   if (qty > 0) return <Stepper qty={qty} large={large} onChange={(n) => setQty(product.id, v.id, n)} />;
   // multi-variant products open the product page from cards so customers pick a size
   const needsChoice = !variant && product.variants.length > 1;
@@ -65,7 +67,7 @@ export function AddControl({ product, variant, large }) {
         else setQty(product.id, v.id, 1);
       }}
     >
-      {large ? 'Add to cart' : needsChoice ? 'Choose' : 'Add'}
+      {t(large ? 'Add to cart' : needsChoice ? 'Choose' : 'Add')}
     </button>
   );
 }
@@ -133,6 +135,7 @@ export function LocationSheet({ open, onClose }) {
   const [pin, setPin] = useState(location?.pincode || '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const { t } = useI18n();
   useEffect(() => { if (open) { setPin(location?.pincode || ''); setErr(''); } }, [open, location]);
 
   const save = (p, area = '') => {
@@ -153,19 +156,19 @@ export function LocationSheet({ open, onClose }) {
     } finally { setBusy(false); }
   };
   return (
-    <Sheet open={open} onClose={onClose} title="Delivery location">
+    <Sheet open={open} onClose={onClose} title={t('Delivery location')}>
       <div className="col" style={{ gap: 14 }}>
         <button className="radio" onClick={detect} disabled={busy}>
           <span className="ico" style={{ color: 'var(--accent)' }}><Icon name="LocateFixed" /></span>
           <span className="grow">
-            <strong>{busy ? 'Detecting…' : 'Use current location'}</strong>
-            <div className="small muted">Fastest way to check delivery</div>
+            <strong>{busy ? 'Detecting…' : t('Use current location')}</strong>
+            <div className="small muted">{t('Fastest way to check delivery')}</div>
           </span>
         </button>
-        <div className="row faint small" style={{ justifyContent: 'center' }}>or</div>
+        <div className="row faint small" style={{ justifyContent: 'center' }}>{t('or')}</div>
         <form className="row" onSubmit={(e) => { e.preventDefault(); save(pin.trim()); }}>
           <input className="input" inputMode="numeric" maxLength={6} placeholder="Site pincode e.g. 560102" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} autoFocus />
-          <button className="btn dark" type="submit">Check</button>
+          <button className="btn dark" type="submit">{t('Check')}</button>
         </form>
         {err && <div className="small red">{err}</div>}
         <p className="small muted">We deliver across {brand.city} in {rules.etaMin}–{rules.etaMax} minutes, 7 AM to 10 PM.</p>
@@ -177,6 +180,7 @@ export function LocationSheet({ open, onClose }) {
 export function Header() {
   const { location, cartCount, user } = useStore();
   const [locOpen, setLocOpen] = useState(false);
+  const { t } = useI18n();
   const nav = [
     ['/', 'Home', 'House'],
     ['/categories', 'Categories', 'LayoutGrid'],
@@ -193,16 +197,16 @@ export function Header() {
           </Link>
           <button className="loc-btn grow" onClick={() => setLocOpen(true)}>
             <span className="eta">
-              {location?.serviceable ? `${rules.etaMin}–${rules.etaMax} min` : location ? 'Not serviceable' : 'Set location'}
+              {location?.serviceable ? `${rules.etaMin}–${rules.etaMax} min` : t(location ? 'Not serviceable' : 'Set location')}
               <Icon name="ChevronDown" size={16} />
             </span>
             <span className="addr ellipsis">
-              <Icon name="MapPin" size={12} /> {location ? `${location.area ? location.area + ', ' : ''}${location.pincode}` : `Delivering across ${brand.city}`}
+              <Icon name="MapPin" size={12} /> {location ? `${location.area ? location.area + ', ' : ''}${location.pincode}` : `${t('Delivering across')} ${brand.city}`}
             </span>
           </button>
           <nav className="nav-links">
             {nav.map(([to, label, icon]) => (
-              <NavLink key={to} to={to} end={to === '/'}><Icon name={icon} size={18} />{label}</NavLink>
+              <NavLink key={to} to={to} end={to === '/'}><Icon name={icon} size={18} />{t(label)}</NavLink>
             ))}
           </nav>
           <Link to="/search" className="icon-btn" aria-label="Search"><Icon name="Search" size={19} /></Link>
@@ -234,6 +238,7 @@ function DemoRibbon() {
 
 export function TabBar() {
   const { cartCount } = useStore();
+  const { t } = useI18n();
   const tabs = [
     ['/', 'Home', 'House'],
     ['/categories', 'Categories', 'LayoutGrid'],
@@ -245,7 +250,7 @@ export function TabBar() {
       {tabs.map(([to, label, icon]) => (
         <NavLink key={to} to={to} end={to === '/'}>
           <Icon name={icon} size={22} />
-          {label}
+          {t(label)}
           {to === '/cart' && cartCount > 0 && <span className="badge">{cartCount}</span>}
         </NavLink>
       ))}
@@ -256,6 +261,7 @@ export function TabBar() {
 export function CartBar() {
   const { lines, cartCount } = useStore();
   const { pathname } = useLocation();
+  const { t } = useI18n();
   if (!cartCount || ['/cart', '/checkout'].includes(pathname) || pathname.startsWith('/orders') || pathname.startsWith('/admin')) return null;
   const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
   return (
@@ -264,7 +270,7 @@ export function CartBar() {
         <div style={{ fontWeight: 700 }}>{cartCount} item{cartCount > 1 ? 's' : ''} · {money(total)}</div>
         <div className="xs" style={{ opacity: 0.85 }}>{total >= rules.freeDeliveryAbove ? 'Free delivery unlocked' : `Add ${money(rules.freeDeliveryAbove - total)} for free delivery`}</div>
       </div>
-      <span className="go">View cart <Icon name="ChevronRight" size={18} /></span>
+      <span className="go">{t('View cart')} <Icon name="ChevronRight" size={18} /></span>
     </Link>
   );
 }

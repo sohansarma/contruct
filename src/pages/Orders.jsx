@@ -7,10 +7,12 @@ import { api, returnAmount } from '../lib/api.js';
 import { STATUS, TRACK_STEPS, canCancel, canReturn, cancelSecondsLeft, isActive, refundDestination } from '../lib/orderLogic.js';
 import { gstBreakup } from '../lib/pricing.js';
 import { brand, rules } from '../config.js';
+import { useI18n } from '../lib/i18n.jsx';
 
 export function StatusPill({ status }) {
+  const { t } = useI18n();
   const cls = isActive({ status }) ? 'live' : status === 'delivered' || status === 'returned' ? 'ok' : status === 'cancelled' ? 'bad' : '';
-  return <span className={`status-pill ${cls}`}>{isActive({ status }) && <span className="pulse" />}{STATUS[status]?.label || status}</span>;
+  return <span className={`status-pill ${cls}`}>{isActive({ status }) && <span className="pulse" />}{t(STATUS[status]?.label || status)}</span>;
 }
 
 function usePoll(fn, ms, deps) {
@@ -26,13 +28,14 @@ export function Orders() {
   const { user, setQty, notify } = useStore();
   const [orders, setOrders] = useState(null);
   usePoll(() => api.listOrders(user).then(setOrders), 15000, [user]);
+  const { t } = useI18n();
   const reorder = (o) => { o.items.forEach((i) => setQty(i.productId, i.variantId, i.qty)); notify('Items added to cart'); };
 
-  if (!orders) return <div className="page"><h1>Orders</h1></div>;
-  if (!orders.length) return <div className="page"><h1>Orders</h1><Empty icon="Package" title="No orders yet" text="Your orders and live tracking will show up here." action={<Link className="btn primary" to="/">Start shopping</Link>} /></div>;
+  if (!orders) return <div className="page"><h1>{t('Orders')}</h1></div>;
+  if (!orders.length) return <div className="page"><h1>{t('Orders')}</h1><Empty icon="Package" title={t('No orders yet')} text="Your orders and live tracking will show up here." action={<Link className="btn primary" to="/">Start shopping</Link>} /></div>;
   return (
     <div className="page">
-      <h1 style={{ marginBottom: 16 }}>Orders</h1>
+      <h1 style={{ marginBottom: 16 }}>{t('Orders')}</h1>
       <div className="col" style={{ gap: 12 }}>
         {orders.map((o) => (
           <Link key={o.id} to={`/orders/${o.id}`} className="glass card" style={{ padding: 16, display: 'block' }}>
@@ -65,6 +68,7 @@ export function OrderDetail() {
   const [now, setNow] = useState(Date.now());
   const [cancelOpen, setCancelOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
+  const { t } = useI18n();
   const load = useCallback(() => api.getOrder(user, id).then(setO), [user, id]);
   usePoll(load, 10000, [load]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
@@ -111,7 +115,7 @@ export function OrderDetail() {
                     <div key={s} className={`step ${cls}`}>
                       <div className="node">{cls === 'done' ? <Icon name="Check" size={16} /> : <span className="xs">{i + 1}</span>}</div>
                       <div>
-                        <div style={{ fontWeight: cls ? 600 : 400 }} className={cls ? '' : 'muted'}>{STATUS[s].label}</div>
+                        <div style={{ fontWeight: cls ? 600 : 400 }} className={cls ? '' : 'muted'}>{t(STATUS[s].label)}</div>
                         {cls === 'now' && s === 'out_for_delivery' && <div className="small muted">Your delivery partner is on the way</div>}
                         {at && <div className="xs faint">{time(at)}</div>}
                       </div>
@@ -135,10 +139,10 @@ export function OrderDetail() {
               </div>
             )}
             <div className="row wrap" style={{ marginTop: 16 }}>
-              {canCancel(o, now) && <button className="btn sm danger" onClick={() => setCancelOpen(true)}>Cancel order · {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}</button>}
-              {canReturn(o, now) && <button className="btn sm outline" onClick={() => setReturnOpen(true)}><Icon name="RotateCcw" size={14} />Return items</button>}
-              <a className="btn sm outline" href={`https://wa.me/${brand.supportPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, I need help with order #${o.id}`)}`} target="_blank" rel="noreferrer"><Icon name="MessageCircle" size={14} />Help</a>
-              {!isActive(o) && <button className="btn sm outline" onClick={() => { o.items.forEach((i) => setQty(i.productId, i.variantId, i.qty)); notify('Items added to cart'); }}><Icon name="RotateCw" size={14} />Reorder</button>}
+              {canCancel(o, now) && <button className="btn sm danger" onClick={() => setCancelOpen(true)}>{t('Cancel order')} · {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}</button>}
+              {canReturn(o, now) && <button className="btn sm outline" onClick={() => setReturnOpen(true)}><Icon name="RotateCcw" size={14} />{t('Return items')}</button>}
+              <a className="btn sm outline" href={`https://wa.me/${brand.supportPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, I need help with order #${o.id}`)}`} target="_blank" rel="noreferrer"><Icon name="MessageCircle" size={14} />{t('Help')}</a>
+              {!isActive(o) && <button className="btn sm outline" onClick={() => { o.items.forEach((i) => setQty(i.productId, i.variantId, i.qty)); notify('Items added to cart'); }}><Icon name="RotateCw" size={14} />{t('Reorder')}</button>}
             </div>
           </section>
 
@@ -172,7 +176,7 @@ export function OrderDetail() {
             <div className="small muted">{o.address.phone}</div>
             {o.note && <div className="small" style={{ marginTop: 8 }}>Note: {o.note}</div>}
           </div>
-          <Link className="btn outline block" to={`/orders/${o.id}/invoice`}><Icon name="Download" size={18} />GST invoice</Link>
+          <Link className="btn outline block" to={`/orders/${o.id}/invoice`}><Icon name="Download" size={18} />{t('GST invoice')}</Link>
         </div>
       </div>
       <CancelSheet open={cancelOpen} onClose={() => setCancelOpen(false)} order={o} onDone={(x) => { setO(x); setCancelOpen(false); notify('Order cancelled'); }} />
