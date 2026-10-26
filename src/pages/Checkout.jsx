@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../lib/store.jsx';
 import { BackHeader, Empty, Icon, ProductArt, Sheet, Stepper } from '../components/ui.jsx';
 import { money } from '../lib/format.js';
-import { codAllowed, computeBill, isServiceable } from '../lib/pricing.js';
+import { codAllowed, computeBill, isServiceable, offerLive, validateCoupon } from '../lib/pricing.js';
 import { coupons, rules } from '../config.js';
 import { api } from '../lib/api.js';
 import { payOnline } from '../lib/payments.js';
@@ -31,7 +31,8 @@ export function BillCard({ bill }) {
       <div className="r"><span>{t('Delivery fee')}</span><span>{bill.delivery ? money(bill.delivery) : <span className="green">{t('FREE')}</span>}</span></div>
       <div className="r"><span>{t('Handling fee')}</span><span>{money(bill.handling)}</span></div>
       {bill.loading > 0 && <div className="r"><span>{t('Loading & unloading')}</span><span>{money(bill.loading)}</span></div>}
-      {bill.discount > 0 && <div className="r green"><span>Coupon {bill.coupon}</span><span>−{money(bill.discount)}</span></div>}
+      {bill.discount > 0 && <div className="r green"><span>{bill.coupon ? `Coupon ${bill.coupon}` : bill.offer?.title || 'Offer'}</span><span>−{money(bill.discount)}</span></div>}
+      {bill.offer?.auto && bill.offer && !bill.discount && bill.delivery === 0 && <div className="r green small"><span>{bill.offer.title}</span><span>Free delivery</span></div>}
       {bill.wallet > 0 && <div className="r green"><span>Credit applied</span><span>−{money(bill.wallet)}</span></div>}
       <div className="r total"><span>{t('To pay')}</span><span>{money(bill.total)}</span></div>
       {bill.savings > 0 && <div className="banner ok small"><Icon name="PiggyBank" size={18} className="green" />You save {money(bill.savings)} on this order</div>}
@@ -96,12 +97,12 @@ export function Cart() {
           <p className="xs muted center">No minimum order. Prices include GST.</p>
         </div>
       </div>
-      <CouponSheet open={couponOpen} onClose={() => setCouponOpen(false)} itemTotal={bill.itemTotal} onApply={(c) => { setCoupon(c); setCouponOpen(false); }} isFirstOrder={orderCount === 0} />
+      <CouponSheet open={couponOpen} onClose={() => setCouponOpen(false)} lines={lines} onApply={(c) => { setCoupon(c); setCouponOpen(false); }} isFirstOrder={orderCount === 0} />
     </div>
   );
 }
 
-function CouponSheet({ open, onClose, onApply, itemTotal, isFirstOrder }) {
+function CouponSheet({ open, onClose, onApply, lines, isFirstOrder }) {
   const [code, setCode] = useState('');
   return (
     <Sheet open={open} onClose={onClose} title="Coupons">
@@ -110,15 +111,16 @@ function CouponSheet({ open, onClose, onApply, itemTotal, isFirstOrder }) {
         <button className="btn dark">Apply</button>
       </form>
       <div className="col">
-        {coupons.map((c) => {
-          const blocked = (c.firstOrderOnly && !isFirstOrder) || itemTotal < (c.minCart || 0);
+        {coupons.filter((c) => c.code && offerLive(c)).map((c) => {
+          const check = validateCoupon(c.code, lines, isFirstOrder);
+          const blocked = !check.ok;
           return (
             <div key={c.code} className="radio" style={{ cursor: 'default' }}>
               <Icon name="BadgePercent" className="accent" />
               <div className="grow">
                 <div style={{ fontWeight: 600 }}>{c.code}</div>
                 <div className="small muted">{c.title}</div>
-                {blocked && <div className="xs faint">{c.firstOrderOnly && !isFirstOrder ? 'First order only' : `Add ${money(c.minCart - itemTotal)} more`}</div>}
+                {blocked && <div className="xs faint">{check.error}</div>}
               </div>
               <button className="btn sm outline" disabled={blocked} onClick={() => onApply(c.code)}>Apply</button>
             </div>
@@ -149,15 +151,15 @@ export function AddressForm({ initial, user, onSaved, onCancel }) {
         {['Site', 'Home', 'Office', 'Other'].map((l) => <button type="button" key={l} className={a.label === l ? 'on' : ''} onClick={() => setA({ ...a, label: l })}>{l}</button>)}
       </div>
       <div className="grid2">
-        <div className="field"><label>Receiver name</label><input className="input" {...f('name')} autoComplete="name" /></div>
-        <div className="field"><label>Receiver phone</label><input className="input" inputMode="tel" {...f('phone')} autoComplete="tel" /></div>
+        <label className="field"><span>Receiver name</span><input className="input" {...f('name')} autoComplete="name" /></label>
+        <label className="field"><span>Receiver phone</span><input className="input" inputMode="tel" {...f('phone')} autoComplete="tel" /></label>
       </div>
-      <div className="field"><label>Flat / plot / building</label><input className="input" {...f('line1')} autoComplete="address-line1" /></div>
-      <div className="field"><label>Street & area</label><input className="input" {...f('line2')} autoComplete="address-line2" /></div>
-      <div className="field"><label>Landmark (helps the driver)</label><input className="input" {...f('landmark')} /></div>
+      <label className="field"><span>Flat / plot / building</span><input className="input" {...f('line1')} autoComplete="address-line1" /></label>
+      <label className="field"><span>Street & area</span><input className="input" {...f('line2')} autoComplete="address-line2" /></label>
+      <label className="field"><span>Landmark (helps the driver)</span><input className="input" {...f('landmark')} /></label>
       <div className="grid2">
-        <div className="field"><label>Pincode</label><input className="input" inputMode="numeric" maxLength={6} {...f('pincode')} autoComplete="postal-code" /></div>
-        <div className="field"><label>City</label><input className="input" {...f('city')} /></div>
+        <label className="field"><span>Pincode</span><input className="input" inputMode="numeric" maxLength={6} {...f('pincode')} autoComplete="postal-code" /></label>
+        <label className="field"><span>City</span><input className="input" {...f('city')} /></label>
       </div>
       {/^\d{6}$/.test(a.pincode) && !isServiceable(a.pincode) && <div className="banner warn small"><Icon name="TriangleAlert" size={16} />We don’t deliver to this pincode yet.</div>}
       {err && <div className="small red">{err}</div>}

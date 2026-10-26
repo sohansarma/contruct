@@ -6,8 +6,10 @@ import { ObjectId } from 'mongodb';
 import { col } from './db.js';
 import { env } from './env.js';
 import { HttpError, publicUser, requestOtp, requireUser, verifyOtp } from './auth.js';
-import { adminSetStatus, cancelOrder, placeOrder, priceCart, requestReturn, serializeOrder, walletBalance } from './orders.js';
+import { cancelOrder, placeOrder, priceCart, requestReturn, serializeOrder, walletBalance } from './orders.js';
 import * as rzp from './razorpay.js';
+import { adminRouter, bucket } from './admin.js';
+import { publicSettings, settingsMiddleware } from './settings.js';
 import { isServiceable } from '../src/lib/pricing.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -49,21 +51,30 @@ export function createApp() {
 
   const api = express.Router();
   const user = requireUser();
-  const admin = requireUser({ admin: true });
 
   api.get('/health', (_req, res) => res.json({ ok: true }));
+  api.use(settingsMiddleware);
 
   // ---------- catalog
   api.get('/catalog', async (_req, res) => {
     const [categories, products] = await Promise.all([
-      col('categories').find().sort({ sort: 1 }).toArray(),
+      col('categories').find({ hidden: { $ne: true } }).sort({ sort: 1 }).toArray(),
       col('products').find({ active: true }).toArray(),
     ]);
-    res.set('Cache-Control', 'public, max-age=60');
+    res.set('Cache-Control', 'no-cache');
     res.json({
-      categories: categories.map(({ _id, sort: _s, ...c }) => ({ ...c, id: _id })),
-      products: products.map(({ _id, priceSource: _p, ...p }) => ({ ...p, id: _id })),
+      categories: categories.map(({ _id, sort: _s, hidden: _h, ...c }) => ({ ...c, id: _id })),
+      products: products.map(({ _id, priceSource: _p, createdAt: _c, updatedAt: _u, ...p }) => ({ ...p, id: _id })),
+      settings: publicSettings(),
     });
+  });
+  api.get('/images/:id', async (req, res, next) => {
+    let id;
+    try { id = new ObjectId(req.params.id); } catch { return res.status(404).end(); }
+    const file = await bucket().find({ _id: id }).next();
+    if (!file) return res.status(404).end();
+    res.set({ 'Content-Type': file.metadata?.contentType || 'image/jpeg', 'Cache-Control': 'public, max-age=31536000, immutable' });
+    bucket().openDownloadStream(id).on('error', next).pipe(res);
   });
   api.get('/serviceable/:pincode', (req, res) => res.json({ serviceable: isServiceable(req.params.pincode) }));
 
@@ -154,37 +165,8 @@ export function createApp() {
     res.json({ ref: paymentId });
   });
 
-  // ---------- admin
-  api.get('/admin/orders', admin, async (req, res) => {
-    const q = req.query.status === 'active' ? { status: { $in: ['placed', 'confirmed', 'packed', 'out_for_delivery', 'return_requested'] } } : {};
-    res.json((await col('orders').find(q).sort({ createdAt: -1 }).limit(300).toArray()).map(serializeOrder));
-  });
-  api.post('/admin/orders/:id/status', admin, async (req, res) => res.json(await adminSetStatus(req.user, req.params.id, req.body.status, req.body)));
-  api.get('/admin/quotes', admin, async (_req, res) => res.json((await col('quotes').find().sort({ createdAt: -1 }).limit(200).toArray()).map(({ _id, createdAt, ...q }) => ({ ...q, id: String(_id), at: +createdAt }))));
-  api.get('/admin/refunds', admin, async (_req, res) => res.json(await col('refunds').find().sort({ createdAt: -1 }).limit(200).toArray()));
-  api.get('/admin/products', admin, async (_req, res) => res.json((await col('products').find().sort({ categoryId: 1, name: 1 }).toArray()).map(({ _id, ...p }) => ({ ...p, id: _id }))));
-  api.patch('/admin/products/:id', admin, async (req, res) => {
-    const p = await col('products').findOne({ _id: req.params.id });
-    if (!p) throw new HttpError(404, 'Product not found.');
-    const $set = {};
-    if (typeof req.body.inStock === 'boolean') $set.inStock = req.body.inStock;
-    if (typeof req.body.active === 'boolean') $set.active = req.body.active;
-    if (Array.isArray(req.body.variants)) {
-      $set.variants = p.variants.map((v) => {
-        const u = req.body.variants.find((x) => x.id === v.id);
-        if (!u) return v;
-        const price = Number(u.price), mrp = Number(u.mrp);
-        if (!(price > 0) || !(mrp >= price)) throw new HttpError(400, `Check prices for ${v.label || p.name}: price must be > 0 and MRP ≥ price.`);
-        const tiers = Array.isArray(u.tiers) ? u.tiers.map((t) => ({ min: Math.floor(Number(t.min)), price: Number(t.price) })).filter((t) => t.min > 1 && t.price > 0 && t.price <= price) : v.tiers;
-        return { ...v, price, mrp, tiers };
-      });
-      $set.priceSource = 'admin';
-    }
-    $set.updatedAt = new Date();
-    const r = await col('products').findOneAndUpdate({ _id: p._id }, { $set }, { returnDocument: 'after' });
-    const { _id, ...rest } = r;
-    res.json({ ...rest, id: _id });
-  });
+  // ---------- admin (products, images, categories, offers, settings, customers…)
+  api.use('/admin', adminRouter());
 
   app.use('/api', api);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));

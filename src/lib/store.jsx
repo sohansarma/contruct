@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
+import { applySettings } from '../config.js';
 import { isServiceable, unitPrice } from './pricing.js';
 import { tap } from './native.js';
 
@@ -20,9 +21,20 @@ export function StoreProvider({ children }) {
   const [recent, setRecent] = useState(() => read('recent', []));
 
   useEffect(() => {
-    Promise.all([api.getSession(), api.listProducts(), api.listCategories()])
-      .then(([u, p, c]) => { setUser(u); setProducts(p); setCategories(c); })
+    Promise.all([api.getSession(), api.catalog()])
+      .then(([u, cat]) => {
+        if (cat.settings) applySettings(cat.settings);
+        setUser(u); setProducts(cat.products); setCategories(cat.categories);
+      })
       .finally(() => setReady(true));
+  }, []);
+
+  // after admin edits: re-read catalogue + settings so the shop shows them at once
+  const reloadCatalog = useCallback(async () => {
+    const cat = await api.catalog();
+    if (cat.settings) applySettings(cat.settings);
+    setProducts(cat.products); setCategories(cat.categories);
+    setLocationState((l) => (l ? { ...l, serviceable: isServiceable(l.pincode) } : l));
   }, []);
   useEffect(() => write('cart', cart), [cart]);
   useEffect(() => write('recent', recent), [recent]);
@@ -72,7 +84,7 @@ export function StoreProvider({ children }) {
   }, []);
 
   const value = {
-    ready, user, setUser, products, categories, productMap,
+    ready, user, setUser, products, categories, productMap, reloadCatalog,
     location, setLocation,
     cart, lines, cartCount, setQty, qtyOf, clearCart,
     toast, notify, recent, pushRecent, setRecent,

@@ -9,7 +9,7 @@ import { faqs, policies } from '../data/content.js';
 import { brand, rules } from '../config.js';
 import { isServiceable } from '../lib/pricing.js';
 import { STATUS } from '../lib/orderLogic.js';
-import { StatusPill, methodLabel } from './Orders.jsx';
+import { StatusPill } from './Orders.jsx';
 import { NotFound } from './Shop.jsx';
 import { LANGS, useI18n } from '../lib/i18n.jsx';
 
@@ -171,13 +171,13 @@ export function Profile() {
     <div className="page" style={{ maxWidth: 560 }}>
       <BackHeader title="Profile" />
       <form className="glass card col" style={{ padding: 18, gap: 14 }} onSubmit={save}>
-        <div className="field"><label>Full name</label><input className="input" {...bind('name')} autoComplete="name" /></div>
-        <div className="field"><label>Mobile</label><input className="input" value={user.phone} disabled /></div>
-        <div className="field"><label>Email (for invoices)</label><input className="input" type="email" {...bind('email')} autoComplete="email" /></div>
+        <label className="field"><span>Full name</span><input className="input" {...bind('name')} autoComplete="name" /></label>
+        <label className="field"><span>Mobile</span><input className="input" value={user.phone} disabled /></label>
+        <label className="field"><span>Email (for invoices)</span><input className="input" type="email" {...bind('email')} autoComplete="email" /></label>
         <h3 style={{ marginTop: 8 }}>Business details</h3>
         <p className="small muted" style={{ marginTop: -8 }}>Add these to get GST invoices with your GSTIN for input tax credit.</p>
-        <div className="field"><label>Business name</label><input className="input" {...bind('businessName')} /></div>
-        <div className="field"><label>GSTIN</label><input className="input" {...bind('gstin')} maxLength={15} style={{ textTransform: 'uppercase' }} /></div>
+        <label className="field"><span>Business name</span><input className="input" {...bind('businessName')} /></label>
+        <label className="field"><span>GSTIN</span><input className="input" {...bind('gstin')} maxLength={15} style={{ textTransform: 'uppercase' }} /></label>
         {err && <div className="small red">{err}</div>}
         <button className="btn primary block">Save</button>
       </form>
@@ -342,145 +342,17 @@ export function Bulk() {
       <p className="muted" style={{ marginTop: -8, marginBottom: 16 }}>Large orders, project supplies or something you can’t find? Tell us what you need.</p>
       <form className="glass card col" style={{ padding: 18, gap: 14 }} onSubmit={submit}>
         <div className="grid2">
-          <div className="field"><label>Name</label><input className="input" {...bind('name')} /></div>
-          <div className="field"><label>Phone</label><input className="input" inputMode="tel" {...bind('phone')} /></div>
+          <label className="field"><span>Name</span><input className="input" {...bind('name')} /></label>
+          <label className="field"><span>Phone</span><input className="input" inputMode="tel" {...bind('phone')} /></label>
         </div>
-        <div className="field"><label>Site pincode</label><input className="input" inputMode="numeric" maxLength={6} {...bind('pincode')} /></div>
-        <div className="field"><label>Material list</label><textarea className="input" rows={6} placeholder={'e.g.\n200 bags OPC 53\n40 sheets 18 mm BWP ply\n10 coils 1.5 sq mm FRLS wire'} {...bind('items')} /></div>
+        <label className="field"><span>Site pincode</span><input className="input" inputMode="numeric" maxLength={6} {...bind('pincode')} /></label>
+        <label className="field"><span>Material list</span><textarea className="input" rows={6} placeholder={'e.g.\n200 bags OPC 53\n40 sheets 18 mm BWP ply\n10 coils 1.5 sq mm FRLS wire'} {...bind('items')} /></label>
         <div className="field"><label>Needed by</label>
           <div className="seg">{['Today', 'This week', 'This month'].map((w) => <button type="button" key={w} className={f.when === w ? 'on' : ''} onClick={() => setF({ ...f, when: w })}>{w}</button>)}</div>
         </div>
         {err && <div className="small red">{err}</div>}
         <button className="btn primary block">Request quote</button>
       </form>
-    </div>
-  );
-}
-
-const ADMIN_NEXT = { placed: ['confirmed', 'cancelled'], confirmed: ['packed', 'cancelled'], packed: ['out_for_delivery'], out_for_delivery: ['delivered'], return_requested: ['returned', 'delivered'] };
-
-export function Admin() {
-  const { user } = useStore();
-  const [tab, setTab] = useState('orders');
-  const [orders, setOrders] = useState([]);
-  const [quotes, setQuotes] = useState([]);
-  const [filter, setFilter] = useState('active');
-  const load = () => { api.adminOrders().then(setOrders); api.adminQuotes().then(setQuotes); };
-  useEffect(() => { if (user?.isAdmin) { load(); const t = setInterval(load, 15000); return () => clearInterval(t); } }, [user]);
-  if (!user?.isAdmin) return <div className="page"><Empty icon="ShieldX" title="Admins only" text={mode === 'demo' ? 'In demo mode, log in with 0000000000 to see the admin dashboard.' : 'Set is_admin = true on your profile row in Supabase.'} /></div>;
-  const today = orders.filter((o) => new Date(o.createdAt).toDateString() === new Date().toDateString());
-  const shown = orders.filter((o) => (filter === 'active' ? ['placed', 'confirmed', 'packed', 'out_for_delivery', 'return_requested'].includes(o.status) : true));
-  return (
-    <div className="page">
-      <BackHeader title="Admin" />
-      <div className="usp" style={{ marginTop: 0, marginBottom: 16 }}>
-        <div className="glass"><Icon name="ShoppingCart" />{today.length} orders today</div>
-        <div className="glass"><Icon name="IndianRupee" />{money(today.filter((o) => o.status !== 'cancelled').reduce((s, o) => s + o.bill.total + (o.bill.wallet || 0), 0))} today</div>
-        <div className="glass"><Icon name="Activity" />{orders.filter((o) => ['placed', 'confirmed', 'packed', 'out_for_delivery'].includes(o.status)).length} in progress</div>
-        <div className="glass"><Icon name="Truck" />{quotes.length} bulk requests</div>
-      </div>
-      <div className="seg" style={{ maxWidth: 480, marginBottom: 14 }}>
-        <button className={tab === 'orders' ? 'on' : ''} onClick={() => setTab('orders')}>Orders</button>
-        <button className={tab === 'quotes' ? 'on' : ''} onClick={() => setTab('quotes')}>Bulk quotes</button>
-        <button className={tab === 'products' ? 'on' : ''} onClick={() => setTab('products')}>Products</button>
-      </div>
-      {tab === 'products' ? <AdminProducts /> : tab === 'orders' ? (
-        <>
-          <div className="chips" style={{ marginBottom: 12 }}>
-            <button className={`chip ${filter === 'active' ? 'on' : ''}`} onClick={() => setFilter('active')}>Needs action</button>
-            <button className={`chip ${filter === 'all' ? 'on' : ''}`} onClick={() => setFilter('all')}>All</button>
-          </div>
-          <div className="glass card" style={{ overflowX: 'auto', padding: 6 }}>
-            <table className="t">
-              <thead><tr><th>Order</th><th>Customer</th><th>Items</th><th>Slot</th><th className="num">Total</th><th>Status</th><th>Action</th></tr></thead>
-              <tbody>
-                {shown.map((o) => (
-                  <tr key={o.id}>
-                    <td><Link className="link" to={`/orders/${o.id}`}>#{o.id}</Link><div className="xs faint">{dateTime(o.createdAt)}</div></td>
-                    <td>{o.address.name}<div className="xs faint">{o.address.phone} · {o.address.pincode}</div></td>
-                    <td className="small">{o.items.map((i) => `${i.qty}× ${i.name}`).join(', ')}</td>
-                    <td className="small">{o.slot === 'asap' ? 'Express' : o.slot}</td>
-                    <td className="num">{money(o.bill.total)}<div className="xs faint">{methodLabel(o.payment.method)}</div></td>
-                    <td><StatusPill status={o.status} /></td>
-                    <td><div className="row wrap" style={{ gap: 6 }}>{(ADMIN_NEXT[o.status] || []).map((s) => (
-                      <button key={s} className={`btn sm ${s === 'cancelled' ? 'danger' : 'outline'}`} onClick={async () => {
-                        const extra = s === 'out_for_delivery' ? { rider: { name: window.prompt('Delivery partner name') || '', phone: window.prompt('Delivery partner phone') || '', vehicle: 'Mini-truck' } } : {};
-                        try { await api.adminSetStatus(o.id, s, extra); } catch (e) { alert(e.message); }
-                        load();
-                      }}>{STATUS[s].label}</button>
-                    ))}</div></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!shown.length && <Empty icon="Inbox" title="Nothing to do" />}
-          </div>
-        </>
-      ) : (
-        <div className="col">
-          {quotes.map((q) => (
-            <div key={q.id} className="glass card" style={{ padding: 16 }}>
-              <div className="row between"><b>{q.name} · <a className="link" href={`tel:${q.phone}`}>{q.phone}</a></b><span className="small muted">{dateTime(q.at)}</span></div>
-              <div className="small muted">Pincode {q.pincode || '—'} · Needed {q.when}</div>
-              <pre className="small" style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: '8px 0 0' }}>{q.items}</pre>
-            </div>
-          ))}
-          {!quotes.length && <Empty icon="Inbox" title="No bulk requests yet" />}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AdminProducts() {
-  const { notify } = useStore();
-  const [list, setList] = useState(null);
-  const [q, setQ] = useState('');
-  const [onlyEst, setOnlyEst] = useState(false);
-  const [edit, setEdit] = useState({});
-  useEffect(() => { api.adminProducts().then(setList).catch((e) => notify(e.message)); }, [notify]);
-  if (!list) return <div className="small muted">Loading…</div>;
-  const shown = list.filter((p) => (!onlyEst || p.priceSource === 'estimate') && (p.name + p.brand).toLowerCase().includes(q.toLowerCase()));
-  const save = async (p, patch) => {
-    try {
-      const u = await api.adminUpdateProduct(p.id, patch);
-      setList(list.map((x) => (x.id === p.id ? u : x)));
-      setEdit((e) => { const n = { ...e }; Object.keys(n).filter((k) => k.startsWith(p.id + '|')).forEach((k) => delete n[k]); return n; });
-      notify('Saved');
-    } catch (e) { notify(e.message); }
-  };
-  const val = (v, f) => edit[`${v.id}|${f}`] ?? (f === 'tiers' ? (v.tiers || []).map((t) => `${t.min}:${t.price}`).join(', ') : v[f]);
-  const set = (v, f, x) => setEdit({ ...edit, [`${v.id}|${f}`]: x });
-  return (
-    <div className="col">
-      <div className="row wrap">
-        <input className="input grow" style={{ maxWidth: 360 }} placeholder="Search products" value={q} onChange={(e) => setQ(e.target.value)} />
-        <label className="row small"><input type="checkbox" className="check" checked={onlyEst} onChange={(e) => setOnlyEst(e.target.checked)} />Only estimated prices ({list.filter((p) => p.priceSource === 'estimate').length})</label>
-      </div>
-      <p className="xs muted">Bulk tiers format: <code>10:415, 30:405</code> (from 10 units ₹415 each; from 30 units ₹405).</p>
-      <div className="glass card" style={{ overflowX: 'auto', padding: 6 }}>
-        <table className="t">
-          <thead><tr><th>Product</th><th>Option</th><th className="num">Price</th><th className="num">MRP</th><th>Bulk tiers</th><th>Stock</th><th /></tr></thead>
-          <tbody>
-            {shown.flatMap((p) => p.variants.map((v, i) => (
-              <tr key={v.id}>
-                <td>{i === 0 && <><b className="small">{p.name}</b><div className="xs faint">{p.brand} · {p.priceSource === 'homerun-list' ? 'market-checked' : p.priceSource === 'admin' ? 'set by you' : 'estimate'}</div></>}</td>
-                <td className="small">{v.label}</td>
-                <td className="num"><input className="input" style={{ width: 90, height: 36 }} type="number" value={val(v, 'price')} onChange={(e) => set(v, 'price', e.target.value)} /></td>
-                <td className="num"><input className="input" style={{ width: 90, height: 36 }} type="number" value={val(v, 'mrp')} onChange={(e) => set(v, 'mrp', e.target.value)} /></td>
-                <td><input className="input" style={{ width: 150, height: 36 }} value={val(v, 'tiers')} onChange={(e) => set(v, 'tiers', e.target.value)} /></td>
-                <td>{i === 0 && <button className={`btn sm ${p.inStock ? 'outline' : 'danger'}`} onClick={() => save(p, { inStock: !p.inStock })}>{p.inStock ? 'In stock' : 'Out of stock'}</button>}</td>
-                <td>{i === 0 && <button className="btn sm dark" onClick={() => save(p, {
-                  variants: p.variants.map((x) => ({
-                    id: x.id, price: val(x, 'price'), mrp: val(x, 'mrp'),
-                    tiers: String(val(x, 'tiers')).split(',').map((s) => s.trim()).filter(Boolean).map((s) => { const [min, price] = s.split(':'); return { min: +min, price: +price }; }),
-                  })),
-                })}>Save</button>}</td>
-              </tr>
-            )))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

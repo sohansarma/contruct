@@ -7,7 +7,7 @@ import { brand, rules } from '../config.js';
 import { categoryById } from '../data/catalog.js';
 import ProductIllustration from './ProductArt.jsx';
 import { currentPosition, pincodeFromPosition } from '../lib/native.js';
-import { mode } from '../lib/api.js';
+import { imageUrl, mode } from '../lib/api.js';
 import { useI18n } from '../lib/i18n.jsx';
 
 export function Icon({ name, size = 20, ...rest }) {
@@ -15,7 +15,7 @@ export function Icon({ name, size = 20, ...rest }) {
   return <C size={size} strokeWidth={1.8} {...rest} />;
 }
 
-export function ProductArt({ product, variant, showBadges = true }) {
+export function ProductArt({ product, variant, showBadges = true, imageIndex = 0 }) {
   const cat = categoryById(product.categoryId);
   const v = variant || product.variants[0];
   const off = pct(v.price, v.mrp);
@@ -23,8 +23,8 @@ export function ProductArt({ product, variant, showBadges = true }) {
   const label = product.variants.length > 1 && !variant ? '' : shortPack(v.label || product.unit);
   return (
     <div className="art" style={{ background: `radial-gradient(120% 90% at 50% 15%, #ffffff 0%, ${tint}1f 100%)` }}>
-      {product.image ? (
-        <img src={product.image} alt={product.name} loading="lazy" />
+      {product.images?.length || product.image ? (
+        <img src={imageUrl(product.images?.[imageIndex] || product.images?.[0] || product.image)} alt={product.name} loading="lazy" />
       ) : (
         <ProductIllustration kind={product.kind} color={product.color} label={label} />
       )}

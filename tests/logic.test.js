@@ -4,7 +4,7 @@ import { packsFor, paintLitres, plasterCementBags, puttyBags, tileAdhesiveBags, 
 import { canCancel, canReturn, refundDestination, simulatedStatus } from '../src/lib/orderLogic.js';
 import { searchProducts } from '../src/lib/search.js';
 import { categories, products } from '../src/data/catalog.js';
-import { rules } from '../src/config.js';
+import { coupons, rules } from '../src/config.js';
 
 const line = (price, qty = 1, extra = {}) => ({ price, mrp: price + 10, qty, heavy: false, ...extra });
 
@@ -124,5 +124,44 @@ describe('material calculator', () => {
     expect(packsFor(37)).toEqual({ 20: 1, 10: 1, 4: 1, 1: 3 });
     expect(tileAdhesiveBags(45)).toBe(11);
     expect(wireCoils({ lightPoints: 20, socketPoints: 12 })).toEqual({ light: 5, power: 4, earth: 3 });
+  });
+});
+
+describe('offers from the admin', () => {
+  const lines = [
+    { price: 425, mrp: 450, qty: 10, heavy: true, categoryId: 'cement', brand: 'UltraTech' },
+    { price: 59, mrp: 75, qty: 10, heavy: false, categoryId: 'switches', brand: 'Legrand' },
+  ];
+  const run = (list, fn) => { const saved = coupons.splice(0, coupons.length, ...list); try { return fn(); } finally { coupons.splice(0, coupons.length, ...saved); } };
+
+  it('scoped coupon only discounts matching items', () => run([{ code: 'CEM5', type: 'percent', value: 5, scope: { categories: ['cement'] } }], () => {
+    expect(computeBill(lines, { coupon: 'CEM5' }).discount).toBe(Math.round(4250 * 0.05));
+  }));
+  it('brand-scoped coupon is rejected when no item matches', () => run([{ code: 'AP10', type: 'percent', value: 10, scope: { brands: ['Asian Paints'] } }], () => {
+    expect(computeBill(lines, { coupon: 'AP10' }).couponError).toMatch(/none of your items/i);
+  }));
+  it('automatic offers apply without a code and the best one wins', () => run([
+    { auto: true, title: 'Flat 100', type: 'flat', value: 100 },
+    { auto: true, title: '3% on switches', type: 'percent', value: 3, scope: { categories: ['switches'] } },
+  ], () => {
+    const b = computeBill(lines);
+    expect(b.discount).toBe(100);
+    expect(b.offer.title).toBe('Flat 100');
+    expect(b.coupon).toBe(null);
+  }));
+  it('offers respect start/end dates and the active switch', () => run([
+    { code: 'LATER', type: 'flat', value: 50, startsAt: '2099-01-01T00:00:00Z' },
+    { code: 'OVER', type: 'flat', value: 50, endsAt: '2000-01-01T00:00:00Z' },
+    { code: 'OFF', type: 'flat', value: 50, active: false },
+  ], () => {
+    for (const c of ['LATER', 'OVER', 'OFF']) expect(computeBill(lines, { coupon: c }).couponError).toMatch(/ended/);
+  }));
+});
+
+describe('delivery area text', () => {
+  it('parses pincodes, ranges and exclusions', async () => {
+    const { parsePincodes } = await import('../src/config.js');
+    const s = parsePincodes('560001-560005, 562125, -560003');
+    expect([...s].sort()).toEqual(['560001', '560002', '560004', '560005', '562125']);
   });
 });

@@ -40,8 +40,7 @@ const demo = {
     return next;
   },
 
-  async listProducts() { return seedProducts; },
-  async listCategories() { return seedCategories; },
+  async catalog() { return { products: seedProducts, categories: seedCategories, settings: null }; },
 
   async listAddresses(user) { return ls.get(`addr:${user.id}`, []); },
   async saveAddress(user, a) {
@@ -114,8 +113,10 @@ const demo = {
   // admin
   async adminOrders() { return this._tick().sort((a, b) => b.createdAt - a.createdAt); },
   async adminQuotes() { return ls.get('quotes', []); },
-  async adminProducts() { return seedProducts; },
-  async adminUpdateProduct() { throw new Error('Product editing needs the live server.'); },
+  get admin() {
+    const live = () => Promise.reject(new Error('This needs the live server (npm start). Demo mode only shows orders.'));
+    return new Proxy({ orders: () => this.adminOrders(), quotes: () => this.adminQuotes(), setStatus: (id, s) => this.adminSetStatus(id, s) }, { get: (t, k) => t[k] || live });
+  },
   async adminSetStatus(id, status) {
     const o = this._patch(id, (o) => ({
       ...o, status,
@@ -177,9 +178,9 @@ const live = {
   async signOut() { token.set(null); },
   updateProfile: (_u, patch) => http('PATCH', '/me', patch),
 
-  async _catalog() { return (this._cat ||= http('GET', '/catalog').catch((e) => { this._cat = null; throw e; })); },
-  async listProducts() { try { return (await this._catalog()).products; } catch { return seedProducts; } },
-  async listCategories() { try { return (await this._catalog()).categories; } catch { return seedCategories; } },
+  async catalog() {
+    try { return await http('GET', '/catalog'); } catch { return { products: seedProducts, categories: seedCategories, settings: null }; }
+  },
 
   listAddresses: () => http('GET', '/addresses'),
   saveAddress: (_u, a) => http('POST', '/addresses', a),
@@ -205,11 +206,42 @@ const live = {
   paymentOrder: (order) => http('POST', '/payments/order', orderPayload(order)),
   verifyPayment: (body) => http('POST', '/payments/verify', body),
 
-  adminOrders: () => http('GET', '/admin/orders'),
-  adminQuotes: () => http('GET', '/admin/quotes'),
-  adminSetStatus: (id, status, extra = {}) => http('POST', `/admin/orders/${id}/status`, { status, ...extra }),
-  adminProducts: () => http('GET', '/admin/products'),
-  adminUpdateProduct: (id, patch) => http('PATCH', `/admin/products/${id}`, patch),
+  admin: {
+    stats: () => http('GET', '/admin/stats'),
+    orders: (q = {}) => http('GET', '/admin/orders?' + new URLSearchParams(q)),
+    setStatus: (id, status, extra = {}) => http('POST', `/admin/orders/${id}/status`, { status, ...extra }),
+    quotes: () => http('GET', '/admin/quotes'),
+    updateQuote: (id, patch) => http('PATCH', `/admin/quotes/${id}`, patch),
+    refunds: () => http('GET', '/admin/refunds'),
+    products: () => http('GET', '/admin/products'),
+    product: (id) => http('GET', `/admin/products/${encodeURIComponent(id)}`),
+    createProduct: (p) => http('POST', '/admin/products', p),
+    saveProduct: (id, p) => http('PUT', `/admin/products/${encodeURIComponent(id)}`, p),
+    patchProduct: (id, p) => http('PATCH', `/admin/products/${encodeURIComponent(id)}`, p),
+    deleteProduct: (id) => http('DELETE', `/admin/products/${encodeURIComponent(id)}`),
+    bulkProducts: (body) => http('POST', '/admin/products/bulk', body),
+    importProducts: (rows) => http('POST', '/admin/products/import', { rows }),
+    categories: () => http('GET', '/admin/categories'),
+    createCategory: (c) => http('POST', '/admin/categories', c),
+    updateCategory: (id, c) => http('PATCH', `/admin/categories/${id}`, c),
+    orderCategories: (ids) => http('POST', '/admin/categories/order', { ids }),
+    deleteCategory: (id) => http('DELETE', `/admin/categories/${id}`),
+    settings: () => http('GET', '/admin/settings'),
+    saveSettings: (s) => http('PUT', '/admin/settings', s),
+    customers: (q = '') => http('GET', '/admin/customers?' + new URLSearchParams({ q })),
+    adjustWallet: (id, amount, note) => http('POST', `/admin/customers/${id}/wallet`, { amount, note }),
+    setAdmin: (id, isAdmin) => http('PATCH', `/admin/customers/${id}`, { isAdmin }),
+    async uploadImage(blob, filename = 'image') {
+      const t = token.get();
+      const res = await fetch(BASE + '/admin/images', { method: 'POST', headers: { 'Content-Type': blob.type, 'X-Filename': filename, ...(t ? { Authorization: `Bearer ${t}` } : {}) }, body: blob });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Upload failed.');
+      return data.url;
+    },
+  },
 };
 
 export const api = mode === 'live' ? live : demo;
+
+/** Product/banner image URL: uploaded images live on the API server. */
+export const imageUrl = (u) => (u && u.startsWith('/api/') ? (API_URL || '').replace(/\/$/, '') + u : u);

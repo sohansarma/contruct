@@ -36,12 +36,25 @@ One codebase ships the **website**, the **Android app** and the **iOS app**.
   - Cancel within 10 min; returns within 24 h.
   - Refunds go to the original payment method, or to wallet credit for cash orders.
   - GST invoice and reorder.
-- **Admin (`/admin`):**
-  - Today's orders and revenue, plus a queue of orders that need action.
-  - One-tap status updates; delivery-partner details when you dispatch.
-  - Approve returns, which refunds automatically.
-  - Bulk-quote leads.
-  - **Products tab:** edit prices, MRP, bulk tiers and stock.
+- **Admin (`/admin`)**: the whole store is run from here, with no code changes needed:
+  - **Dashboard:** today's orders and sales, orders in progress, returns to review, new bulk quotes, out-of-stock count, a 14-day sales chart and top products.
+  - **Orders:** search by order number, phone or name; confirm → pack → dispatch (with delivery-partner details) → deliver; cancel with automatic refund; approve returns.
+  - **Products:**
+    - Add, edit, hide or delete products.
+    - Upload several photos per product (resized in the browser, stored in MongoDB) or paste an image link.
+    - Sizes and options with price, MRP and bulk tiers; specs and description.
+    - Deal, new and badge labels; returnable and heavy flags.
+    - Bulk actions: stock, deals, hide/show, and change prices by %.
+    - **CSV import/export** for distributor price lists.
+  - **Categories:** add, rename, reorder, set an image, hide or delete.
+  - **Offers & banners:**
+    - Coupon codes and automatic offers: % off (with a cap), ₹ off, or free delivery.
+    - Minimum spend, first order only, start and end dates.
+    - Limit an offer to chosen categories or brands.
+    - Home-page banners with an image or colour, a link and a schedule.
+  - **Customers:** search, orders and spend, add or deduct wallet credit, give or remove admin access.
+  - **Bulk quotes:** track each lead as new → contacted → won or lost.
+  - **Settings:** store name, support contacts, invoice details and GST rate; delivery, handling and loading fees; free-delivery threshold; delivery time; time slots; delivery pincodes (ranges and exclusions); cash-on-delivery areas; cancel and return windows.
 - Hindi and English, light and dark mode, FAQ and policy pages, and an SEO price-list page per category.
 
 **Server-side rules:** every amount is recomputed on the server from MongoDB using the same pricing code as the app, so a customer can't change a price, reuse a payment, skip payment or overspend credit. All of this is covered by the end-to-end tests.
@@ -50,9 +63,9 @@ One codebase ships the **website**, the **Android app** and the **iOS app**.
 
 The categories and product range mirror what HomeRun stocks in Bengaluru (brands, product lines and pack sizes). Where HomeRun publishes a Bengaluru price list, that price and its bulk tiers are used, and those products show as "market-checked" in **Admin → Products**. Everything else is an estimate.
 
-Product photos and descriptions are **not** copied, because they're the brands' and HomeRun's copyright. Products use original illustrations. To show real photos, set `image` (a URL) on a product.
+Product photos and descriptions are **not** copied, because they're the brands' and HomeRun's copyright. Products use original illustrations until you add photos in Admin → Products. Use photos you shoot yourself, or the official images brands give you as an authorised dealer.
 
-**Before launch, set your own selling prices.** In Admin → Products, tick "Only estimated prices" to see the products that still need one. Prices you edit there are kept when you re-seed.
+**Before launch, set your own selling prices and add photos.** In Admin → Products, the "Price not set" and "No photo" filters list what's left. Anything you edit in the admin is kept when you re-seed.
 
 ## Run it locally
 
@@ -119,10 +132,13 @@ Change `appId` in `capacitor.config.json` before your first upload; it can't be 
 
 | What | Where |
 |---|---|
-| Name, support contacts, legal name, GSTIN | `src/config.js` → `brand` |
-| Fees, free-delivery threshold, cancel/return windows, slots | `src/config.js` → `rules` |
-| Serviceable pincodes, COD areas, coupons | `src/config.js` |
-| Products, prices, tiers | Admin → Products, or `src/data/catalog.js` + `npm run seed` |
+| Name, support contacts, legal name, GSTIN | Admin → Settings |
+| Fees, free-delivery threshold, delivery time, slots, cancel/return windows | Admin → Settings |
+| Delivery pincodes, cash-on-delivery areas | Admin → Settings |
+| Coupons, automatic offers, home banners | Admin → Offers & banners |
+| Products, photos, prices, tiers, stock | Admin → Products (or CSV import) |
+| Categories | Admin → Categories |
+| Starter data / defaults for a fresh database | `src/data/catalog.js`, `src/config.js`, then `npm run seed` |
 | FAQ and policies | `src/data/content.js` (have a lawyer review them) |
 | Colours | CSS variables at the top of `src/styles.css` |
 
@@ -130,6 +146,7 @@ Change `appId` in `capacitor.config.json` before your first upload; it can't be 
 
 ```
 src/                 React app (shared by web, Android, iOS)
+  pages/admin/       admin console
   config.js          brand + business rules (also used by the server)
   data/catalog.js    categories & products (seed)
   lib/pricing.js     bill, bulk tiers, coupons, GST (shared with server)
@@ -142,7 +159,9 @@ server/              Express API + MongoDB
   orders.js          pricing, payments, cancel, return, refunds
   auth.js / sms.js   phone OTP + JWT
   razorpay.js        gateway orders, signature check, refunds
-  seed.js            load catalogue
+  admin.js           admin API: products, photos (GridFS), categories, customers, CSV import
+  settings.js        store settings, offers and banners in MongoDB
+  seed.js            load starter catalogue and settings
 tests/               unit tests + live end-to-end suite
 android/ ios/        Capacitor native projects
 ```

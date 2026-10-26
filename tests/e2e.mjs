@@ -158,4 +158,132 @@ await step('bulk quote request reaches the admin', async () => {
   assert.ok((await ok('GET', '/admin/quotes', null, admin)).some((q) => q.items === '200 bags OPC 53'));
 });
 
+// ---------------------------------------------------------------- admin console
+const raw = async (method, path, body, headers = {}) => {
+  const r = await fetch(API + path, { method, headers, body });
+  return { status: r.status, type: r.headers.get('content-type'), body: r.headers.get('content-type')?.includes('json') ? await r.json() : Buffer.from(await r.arrayBuffer()) };
+};
+// 1×1 PNG
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64');
+let photo;
+
+await step('admin uploads a product photo (stored in MongoDB, served back)', async () => {
+  const up = await raw('POST', '/admin/images', PNG, { Authorization: `Bearer ${admin}`, 'Content-Type': 'image/png' });
+  assert.equal(up.status, 201, JSON.stringify(up.body));
+  photo = up.body.url;
+  const got = await raw('GET', photo.replace('/api', ''));
+  assert.equal(got.status, 200);
+  assert.equal(got.type, 'image/png');
+  assert.ok(got.body.equals(PNG));
+  const fake = await raw('POST', '/admin/images', Buffer.from('not an image'), { Authorization: `Bearer ${admin}`, 'Content-Type': 'image/png' });
+  assert.equal(fake.status, 400, 'non-image rejected');
+  const cust = await raw('POST', '/admin/images', PNG, { Authorization: `Bearer ${me}`, 'Content-Type': 'image/png' });
+  assert.equal(cust.status, 403, 'customers cannot upload');
+});
+
+await step('admin creates a category and a product with photos, sizes and bulk tiers', async () => {
+  const cat = await ok('POST', '/admin/categories', { name: 'Test Tiles', blurb: 'Floor tiles' }, admin);
+  assert.equal(cat.id, 'test-tiles');
+  const p = await ok('POST', '/admin/products', {
+    name: 'Vitrified Floor Tile 600×600', brand: 'Kajaria', categoryId: cat.id, description: 'Glossy finish',
+    images: [photo], specs: { Size: '600 × 600 mm' }, heavy: true, deal: true,
+    variants: [{ label: 'Box of 4', price: 960, mrp: 1100, tiers: [{ min: 10, price: 920 }] }, { label: 'Single', price: 260, mrp: 300 }],
+  }, admin);
+  assert.equal(p.id, 'kajaria-vitrified-floor-tile-600-600');
+  assert.equal((await call('POST', '/admin/products', { name: 'Vitrified Floor Tile 600×600', brand: 'Kajaria', categoryId: cat.id, variants: [{ label: 'x', price: 1 }] }, admin)).status, 409, 'duplicate id');
+  assert.equal((await call('POST', '/admin/products', { name: 'Bad tier', categoryId: cat.id, variants: [{ label: 'x', price: 100, tiers: [{ min: 5, price: 120 }] }] }, admin)).status, 400, 'tier above price');
+  const catalog = await ok('GET', '/catalog');
+  const live = catalog.products.find((x) => x.id === p.id);
+  assert.deepEqual(live.images, [photo]);
+  assert.ok(catalog.categories.some((c) => c.id === 'test-tiles'));
+  const b = await ok('POST', '/orders/quote', { items: [{ productId: p.id, variantId: live.variants[0].id, qty: 10 }] }, me);
+  assert.equal(b.itemTotal, 9200, 'new product priced with its bulk tier');
+});
+
+await step('admin edits, hides and deletes products; hidden categories leave the shop', async () => {
+  const id = 'kajaria-vitrified-floor-tile-600-600';
+  const p = await ok('GET', `/admin/products/${id}`, null, admin);
+  const saved = await ok('PUT', `/admin/products/${id}`, { ...p, variants: p.variants.map((v) => ({ ...v, price: v.price - 10 })) }, admin);
+  assert.equal(saved.variants[0].price, 950);
+  await ok('POST', '/admin/products/bulk', { ids: [id], active: false }, admin);
+  assert.ok(!(await ok('GET', '/catalog')).products.some((x) => x.id === id), 'hidden product not in shop');
+  assert.equal((await call('POST', '/orders/quote', { items: [{ productId: id, variantId: p.variants[0].id, qty: 1 }] }, me)).status, 409, 'hidden product cannot be bought');
+  assert.equal((await call('DELETE', '/admin/categories/test-tiles', null, admin)).status, 400, 'category with products cannot be deleted');
+  await ok('DELETE', `/admin/products/${id}`, null, admin);
+  await ok('PATCH', '/admin/categories/test-tiles', { hidden: true }, admin);
+  assert.ok(!(await ok('GET', '/catalog')).categories.some((c) => c.id === 'test-tiles'));
+  await ok('DELETE', '/admin/categories/test-tiles', null, admin);
+});
+
+await step('bulk price change by percent keeps tiers below price', async () => {
+  const before = (await ok('GET', '/admin/products/ultratech-ppc', null, admin)).variants[0];
+  await ok('POST', '/admin/products/bulk', { ids: ['ultratech-ppc'], adjustPercent: 10 }, admin);
+  const after = (await ok('GET', '/admin/products/ultratech-ppc', null, admin)).variants[0];
+  assert.equal(after.price, Math.round(before.price * 1.1));
+  assert.ok(after.tiers.every((t) => t.price < after.price));
+  await ok('PATCH', '/admin/products/ultratech-ppc', { variants: [{ id: before.id, price: before.price, mrp: before.mrp, tiers: before.tiers }] }, admin);
+});
+
+await step('CSV import groups sizes into products and reports bad rows', async () => {
+  const r = await ok('POST', '/admin/products/import', { rows: [
+    { name: 'Wall Primer Test', brand: 'Indigo', category: 'Painting', option: '4 L', price: '650', mrp: '720', tiers: '10:620', images: photo },
+    { name: 'Wall Primer Test', brand: 'Indigo', category: 'painting', option: '10 L', price: '1450', mrp: '1600' },
+    { name: 'Broken Row', brand: 'X', category: 'nope', option: '1', price: '10' },
+  ] }, admin);
+  assert.equal(r.created, 1);
+  assert.equal(r.errors.length, 1);
+  assert.match(r.errors[0].error, /category/i);
+  const p = await ok('GET', '/admin/products/indigo-wall-primer-test', null, admin);
+  assert.deepEqual(p.variants.map((v) => v.label), ['4 L', '10 L']);
+  assert.equal(p.variants[0].tiers[0].price, 620);
+  const again = await ok('POST', '/admin/products/import', { rows: [{ id: 'indigo-wall-primer-test', option: '4 L', price: '640', mrp: '720' }] }, admin);
+  assert.equal(again.updated, 1);
+  await ok('DELETE', '/admin/products/indigo-wall-primer-test', null, admin);
+});
+
+let original;
+await step('admin creates offers: scoped coupon + automatic offer change the bill', async () => {
+  original = await ok('GET', '/admin/settings', null, admin);
+  await ok('PUT', '/admin/settings', { coupons: [
+    ...original.coupons,
+    { code: 'cement5', title: '5% off cement', type: 'percent', value: 5, scope: { categories: ['cement'] } },
+    { auto: true, title: '₹50 off orders over ₹2,000', type: 'flat', value: 50, minCart: 2000 },
+  ] }, admin);
+  const cart = { items: [{ productId: 'ultratech-ppc', variantId: 'ultratech-ppc-0', qty: 10 }, { productId: 'legrand-switch-6a', variantId: 'legrand-switch-6a-0', qty: 2 }] };
+  const auto = await ok('POST', '/orders/quote', cart, me);
+  assert.equal(auto.discount, 50, 'automatic offer applied');
+  const code = await ok('POST', '/orders/quote', { ...cart, coupon: 'CEMENT5' }, me);
+  assert.equal(code.discount, Math.round(4150 * 0.05), 'code applies only to cement lines');
+  const pub = await ok('GET', '/catalog');
+  assert.ok(pub.settings.coupons.some((c) => c.code === 'CEMENT5'));
+  assert.equal((await call('PUT', '/admin/settings', { coupons: [{ code: 'A', type: 'flat', value: 1 }, { code: 'A', type: 'flat', value: 2 }] }, admin)).status, 400, 'duplicate codes refused');
+  assert.equal((await call('PUT', '/admin/settings', { coupons: [] }, me)).status, 403, 'customers cannot change offers');
+});
+
+await step('admin changes fees and the delivery area', async () => {
+  await ok('PUT', '/admin/settings', { rules: { ...original.rules, deliveryFee: 79, freeDeliveryAbove: 5000, pincodes: '560001-560050' }, banners: [{ title: 'Monsoon sale', subtitle: 'Waterproofing deals', link: '/c/waterproofing', color: '#0a84ff' }] }, admin);
+  const b = await ok('POST', '/orders/quote', { items: [{ productId: 'legrand-switch-6a', variantId: 'legrand-switch-6a-0', qty: 2 }] }, me);
+  assert.equal(b.delivery, 79);
+  assert.equal((await ok('GET', '/serviceable/560102')).serviceable, false, '560102 now outside the area');
+  assert.equal((await call('POST', '/orders', { items: [{ productId: 'legrand-switch-6a', variantId: 'legrand-switch-6a-0', qty: 2 }], addressId: siteAddr.id, payment: { method: 'cod' } }, me)).status, 400);
+  const pub = await ok('GET', '/catalog');
+  assert.equal(pub.settings.rules.deliveryFee, 79);
+  assert.equal(pub.settings.banners[0].title, 'Monsoon sale');
+  await ok('PUT', '/admin/settings', { rules: original.rules, coupons: original.coupons, banners: original.banners }, admin);
+  assert.equal((await ok('GET', '/serviceable/560102')).serviceable, true, 'restored');
+});
+
+await step('customers: list, give credit, make admin', async () => {
+  const list = await ok('GET', '/admin/customers?q=98765', null, admin);
+  const ravi = list.find((c) => c.phone === '+919876543210');
+  assert.ok(ravi && ravi.orders >= 1);
+  const before = ravi.wallet;
+  const r = await ok('POST', `/admin/customers/${ravi.id}/wallet`, { amount: 500, note: 'Goodwill' }, admin);
+  assert.equal(r.balance, before + 500);
+  assert.equal((await call('POST', `/admin/customers/${ravi.id}/wallet`, { amount: -100000 }, admin)).status, 400, 'cannot go negative');
+  assert.equal((await ok('GET', '/wallet', null, me)).txns[0].note, 'Goodwill');
+  const stats = await ok('GET', '/admin/stats', null, admin);
+  assert.ok(stats.customers >= 2 && stats.products > 100);
+});
+
 console.log(`\n${passed} end-to-end checks passed against ${API}`);

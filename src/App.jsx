@@ -1,12 +1,13 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { CartBar, Footer, Header, RequireAuth, TabBar, Toast } from './components/ui.jsx';
 import { Categories, Category, Home, NotFound, Product, Search } from './pages/Shop.jsx';
 import { Cart, Checkout } from './pages/Checkout.jsx';
 import { Invoice, OrderDetail, Orders } from './pages/Orders.jsx';
-import { About, Account, Addresses, Admin, Bulk, Help, Login, Policy, PriceList, Profile, WalletPage } from './pages/Account.jsx';
+import { About, Account, Addresses, Bulk, Help, Login, Policy, PriceList, Profile, WalletPage } from './pages/Account.jsx';
 import { initNative } from './lib/native.js';
 import Calculator from './pages/Calculator.jsx';
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout.jsx'));
 import { brand } from './config.js';
 
 const auth = (el) => <RequireAuth>{el}</RequireAuth>;
@@ -47,7 +48,7 @@ export default function App() {
           <Route path="/about" element={<About />} />
           <Route path="/price-list" element={<PriceList />} />
           <Route path="/price-list/:id" element={<PriceList />} />
-          <Route path="/admin" element={auth(<Admin />)} />
+          <Route path="/admin/*" element={auth(<Suspense fallback={<div className="page small muted">Loading admin…</div>}><AdminLayout /></Suspense>)} />
           <Route path="/hi/*" element={<Navigate to="/" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

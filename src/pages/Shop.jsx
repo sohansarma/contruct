@@ -3,7 +3,9 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../lib/store.jsx';
 import { AddControl, BackHeader, Empty, Icon, LocationSheet, ProductArt, ProductCard, Stepper } from '../components/ui.jsx';
 import { money, pct } from '../lib/format.js';
-import { brand, coupons, rules } from '../config.js';
+import { banners, brand, coupons, rules } from '../config.js';
+import { imageUrl } from '../lib/api.js';
+import { offerLive } from '../lib/pricing.js';
 import { share } from '../lib/native.js';
 import { searchProducts } from '../lib/search.js';
 import { nextTier, unitPrice } from '../lib/pricing.js';
@@ -77,10 +79,16 @@ export function Home() {
       <section className="section">
         <div className="section-head"><h2>{t('Offers')}</h2></div>
         <div className="offers">
-          {coupons.map((c, i) => (
-            <div key={c.code} className="offer" style={{ background: ['linear-gradient(135deg,#ff4f1f,#ff385c)', 'linear-gradient(135deg,#5e5ce6,#0a84ff)', 'linear-gradient(135deg,#1f9d55,#30d158)'][i % 3] }}>
+          {banners.filter((b) => offerLive(b)).map((b) => (
+            <Link key={b.id} to={b.link || '/'} className="offer" style={{ background: b.image ? `linear-gradient(0deg,rgba(0,0,0,.55),rgba(0,0,0,.05)), url(${imageUrl(b.image)}) center/cover` : `linear-gradient(135deg, ${b.color}, ${b.color}cc)` }}>
+              <h3>{b.title}</h3>
+              <div className="row between"><span className="small" style={{ opacity: 0.9 }}>{b.subtitle}</span><Icon name="ArrowRight" size={18} /></div>
+            </Link>
+          ))}
+          {coupons.filter((c) => offerLive(c)).map((c, i) => (
+            <div key={c.id || c.code} className="offer" style={{ background: ['linear-gradient(135deg,#ff4f1f,#ff385c)', 'linear-gradient(135deg,#5e5ce6,#0a84ff)', 'linear-gradient(135deg,#1f9d55,#30d158)'][i % 3] }}>
               <h3>{c.title}</h3>
-              <div className="row between"><code>{c.code}</code><span className="xs" style={{ opacity: .85 }}>Apply in cart</span></div>
+              <div className="row between">{c.auto ? <span className="xs" style={{ opacity: .9 }}>Applied automatically</span> : <><code>{c.code}</code><span className="xs" style={{ opacity: .85 }}>Apply in cart</span></>}</div>
             </div>
           ))}
         </div>
@@ -141,7 +149,7 @@ export function CategoryGrid({ categories }) {
       {categories.map((c) => (
         <Link key={c.id} to={`/c/${c.id}`} className="cat">
           <div className="tile glass" style={{ color: c.tint, background: `radial-gradient(120% 90% at 50% 15%, #ffffff 0%, ${c.tint}24 100%)` }}>
-            {c.art ? <ProductIllustration kind={c.art[0]} color={c.art[1]} /> : <Icon name={c.icon} size={34} />}
+            {c.image ? <img src={imageUrl(c.image)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 22 }} /> : c.art ? <ProductIllustration kind={c.art[0]} color={c.art[1]} /> : <Icon name={c.icon} size={34} />}
           </div>
           {c.name}
         </Link>
@@ -243,8 +251,9 @@ export function Product() {
   const { productMap, products, qtyOf, setQty, categories, location, notify } = useStore();
   const p = productMap[id];
   const [vid, setVid] = useState(null);
+  const [img, setImg] = useState(0);
   const { t } = useI18n();
-  useEffect(() => { setVid(null); window.scrollTo(0, 0); }, [id]);
+  useEffect(() => { setVid(null); setImg(0); window.scrollTo(0, 0); }, [id]);
   if (!p) return <NotFound />;
   const v = p.variants.find((x) => x.id === vid) || p.variants[0];
   const qty = qtyOf(p.id, v.id);
@@ -260,7 +269,12 @@ export function Product() {
         </button>
       } />
       <div className="pdp">
-        <ProductArt product={p} variant={v} />
+        <div className="col">
+          <ProductArt product={p} variant={v} imageIndex={img} />
+          {p.images?.length > 1 && (
+            <div className="gallery">{p.images.map((u, i) => <button key={u} className={i === img ? 'on' : ''} onClick={() => setImg(i)} aria-label={`Photo ${i + 1}`}><img src={imageUrl(u)} alt="" /></button>)}</div>
+          )}
+        </div>
         <div className="col" style={{ gap: 16 }}>
           <div>
             <Link to={`/c/${p.categoryId}`} className="small accent">{cat?.name}</Link>
@@ -331,6 +345,8 @@ export function Product() {
             {p.heavy && <div><span className="ico"><Icon name="Weight" size={18} /></span><span className="grow small">Heavy item: unloaded at your gate (₹{rules.heavyItemFee}/unit)</span></div>}
             <div><span className="ico"><Icon name="ShieldCheck" size={18} /></span><span className="grow small">100% genuine, sourced from authorised distributors</span></div>
           </div>
+
+          {p.description && <p className="muted" style={{ whiteSpace: 'pre-line' }}>{p.description}</p>}
 
           {Object.keys(p.specs).length > 0 && (
             <div>
