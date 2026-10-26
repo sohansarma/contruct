@@ -1,0 +1,10 @@
+{
+  "appId": "co.buildrun.app",
+  "appName": "BuildRun",
+  "webDir": "dist",
+  "ios": { "contentInset": "never" },
+  "android": { "allowMixedContent": false },
+  "plugins": {
+    "StatusBar": { "overlaysWebView": true, "style": "DEFAULT" }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "buildrun",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Quick-commerce for construction & interior materials. Web + iOS + Android from one codebase (React + Vite + Capacitor).",
+  "scripts": {
+    "dev": "vite",
+    "icons": "node scripts/gen-icons.mjs",
+    "build": "node scripts/gen-icons.mjs && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "lint": "eslint src",
+    "cap:sync": "vite build && cap sync",
+    "android": "vite build && cap sync android && cap open android",
+    "ios": "vite build && cap sync ios && cap open ios",
+    "seed": "node scripts/seed.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/geolocation": "^8.2.4",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/status-bar": "^8.0.4",
+    "@supabase/supabase-js": "^2.118.0",
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
+    "@eslint/js": "^10.0.1",
+    "@vitejs/plugin-react": "^6.1.2",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
