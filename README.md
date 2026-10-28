@@ -102,6 +102,8 @@ On every push, CI runs lint, the unit tests and the production build. It then ru
 
 Create a cluster in the Mumbai region and a database user, and allow your host's IP (or `0.0.0.0/0`). Copy the connection string into `MONGODB_URI`, then run `MONGODB_URI=... npm run seed`.
 
+Self-hosting MongoDB instead? On Linux kernel 6.19 or newer, use MongoDB 8.0.30+, 8.3.9+ or 9.0+, or set `GLIBC_TUNABLES=glibc.pthread.rseq=1` for the `mongod` process. Older 8.x builds refuse to start on these kernels. Atlas isn't affected.
+
 ### 2. SMS for login codes
 
 The simplest Indian option is **MSG91**:
