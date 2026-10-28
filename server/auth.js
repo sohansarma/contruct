@@ -66,7 +66,7 @@ export function requireUser({ admin = false } = {}) {
       const { sub } = jwt.verify(token, env.jwtSecret);
       const { ObjectId } = await import('mongodb');
       const user = await col('users').findOne({ _id: new ObjectId(sub) });
-      if (!user) return res.status(401).json({ error: 'Please sign in again.' });
+      if (!user || user.deletedAt) return res.status(401).json({ error: 'Please sign in again.' });
       if (admin && !user.isAdmin) return res.status(403).json({ error: 'Admins only.' });
       req.user = user;
       next();

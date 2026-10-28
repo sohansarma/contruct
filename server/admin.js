@@ -10,6 +10,7 @@ const str = (v, max = 200) => String(v ?? '').trim().slice(0, max);
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : NaN; };
 const slug = (s) => str(s, 80).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const out = ({ _id, ...p }) => ({ ...p, id: _id });
+const GST_RATES = [0, 0.05, 0.12, 0.18, 0.28, 0.4];
 
 export const bucket = () => new GridFSBucket(getClient().db(), { bucketName: 'images' });
 
@@ -18,7 +19,8 @@ export async function cleanProduct(body, existing = {}) {
   const name = str(body.name ?? existing.name, 120);
   if (!name) throw new HttpError(400, 'Product name is required.');
   const categoryId = str(body.categoryId ?? existing.categoryId, 40);
-  if (!(await col('categories').findOne({ _id: categoryId }))) throw new HttpError(400, `Unknown category “${categoryId}”.`);
+  const category = await col('categories').findOne({ _id: categoryId });
+  if (!category) throw new HttpError(400, `Unknown category “${categoryId}”.`);
   const variantsIn = Array.isArray(body.variants) && body.variants.length ? body.variants : existing.variants;
   if (!variantsIn?.length) throw new HttpError(400, 'Add at least one size / option with a price.');
   const id = existing._id || str(body.id, 60) || slug(`${body.brand || ''} ${name}`);
@@ -57,6 +59,8 @@ export async function cleanProduct(body, existing = {}) {
     deal: bool('deal', false),
     isNew: bool('isNew', false),
     tag: str(body.tag ?? existing.tag, 24) || null,
+    hsn: (str(body.hsn ?? existing.hsn, 8).replace(/\D/g, '') || category.hsn || ''),
+    gstRate: GST_RATES.includes(Number(body.gstRate ?? existing.gstRate)) ? Number(body.gstRate ?? existing.gstRate) : 0.18,
     kind: str(body.kind ?? existing.kind, 20) || 'box',
     color: /^#[0-9a-f]{6}$/i.test(body.color ?? '') ? body.color : existing.color || '#c7ccd1',
     priceSource: 'admin',
@@ -206,6 +210,8 @@ export function adminRouter() {
           inStock: yes(r0.in_stock ?? r0.stock, existing.inStock ?? true),
           returnable: yes(r0.returnable, existing.returnable ?? true),
           heavy: yes(r0.heavy, existing.heavy ?? false),
+          hsn: r0.hsn ?? existing.hsn,
+          gstRate: r0.gst_rate ? (Number(r0.gst_rate) > 1 ? Number(r0.gst_rate) / 100 : Number(r0.gst_rate)) : existing.gstRate,
           active: yes(r0.active, existing.active ?? true),
         };
         const p = await cleanProduct(body, existing._id ? existing : {});

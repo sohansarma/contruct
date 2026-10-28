@@ -18,7 +18,8 @@ export default function App() {
   useEffect(() => { initNative(navigate); }, [navigate]);
   useEffect(() => {
     window.scrollTo(0, 0);
-    if (!pathname.startsWith('/price-list')) document.title = `${brand.name} · Building materials, delivered in an hour`;
+    // product, category and price-list pages set their own titles
+    if (!/^\/(p|c|price-list)(\/|$)/.test(pathname)) document.title = `${brand.name} · Building materials, delivered in an hour`;
   }, [pathname]);
 
   return (

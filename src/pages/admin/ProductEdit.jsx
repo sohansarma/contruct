@@ -10,7 +10,7 @@ import { ImagesField, Toggle } from './common.jsx';
 const blank = {
   name: '', brand: '', categoryId: '', description: '', images: [], specs: {},
   variants: [{ label: '', price: '', mrp: '', tiers: [] }],
-  inStock: true, active: true, returnable: true, heavy: false, deal: false, isNew: true, tag: '', kind: 'box', color: '#c7ccd1',
+  inStock: true, active: true, returnable: true, heavy: false, deal: false, isNew: true, tag: '', kind: 'box', color: '#c7ccd1', hsn: '', gstRate: 0.18,
 };
 
 export default function ProductEdit() {
@@ -76,6 +76,12 @@ export default function ProductEdit() {
               <div className="field"><label>Category</label>
                 <select className="input" value={p.categoryId} onChange={(e) => set('categoryId', e.target.value)}>{cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
               </div>
+            </div>
+            <div className="grid2">
+              <label className="field"><span>HSN code</span><input className="input" inputMode="numeric" maxLength={8} value={p.hsn || ''} onChange={(e) => set('hsn', e.target.value.replace(/\D/g, ''))} placeholder="e.g. 2523" /></label>
+              <label className="field"><span>GST rate</span>
+                <select className="input" value={p.gstRate ?? 0.18} onChange={(e) => set('gstRate', +e.target.value)}>{[0, 0.05, 0.12, 0.18, 0.28, 0.4].map((r) => <option key={r} value={r}>{Math.round(r * 100)}%</option>)}</select>
+              </label>
             </div>
             <label className="field"><span>Description (optional)</span><textarea className="input" rows={3} value={p.description || ''} onChange={(e) => set('description', e.target.value)} placeholder="What it's for, coverage, key features" /></label>
           </section>

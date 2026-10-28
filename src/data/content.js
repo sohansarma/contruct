@@ -68,7 +68,7 @@ export const policies = {
       ['Why', 'To deliver orders, send status updates, prevent fraud, issue invoices and improve the service.'],
       ['Payments', 'Card and UPI details are handled by our PCI-DSS compliant payment partner. We never store card numbers.'],
       ['Sharing', 'Only with delivery partners (name, phone, address for your order), payment processors, and authorities when legally required. We do not sell your data.'],
-      ['Your choices', 'You can edit or delete addresses at any time, and request account deletion from Account → Help.'],
+      ['Your choices', 'You can edit or delete addresses at any time, and delete your account yourself from Account → Delete my account. Order and invoice records are kept as GST law requires.'],
       ['Contact', `Write to ${brand.supportEmail} for any privacy request.`],
     ],
   },

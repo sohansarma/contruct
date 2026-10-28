@@ -5,7 +5,7 @@ import { BackHeader, Empty, Icon, Sheet } from '../components/ui.jsx';
 import { dateTime, money, money2, time } from '../lib/format.js';
 import { api, returnAmount } from '../lib/api.js';
 import { STATUS, TRACK_STEPS, canCancel, canReturn, cancelSecondsLeft, isActive, refundDestination } from '../lib/orderLogic.js';
-import { gstBreakup } from '../lib/pricing.js';
+import { invoiceLines } from '../lib/pricing.js';
 import { brand, rules } from '../config.js';
 import { useI18n } from '../lib/i18n.jsx';
 
@@ -248,16 +248,20 @@ export function Invoice() {
   const [o, setO] = useState(null);
   useEffect(() => { api.getOrder(user, id).then(setO); }, [user, id]);
   if (!o) return <div className="page" />;
-  const fees = o.bill.delivery + o.bill.handling + o.bill.loading;
-  const rows = [
-    ...o.items.map((i) => ({ desc: `${i.name} (${i.brand}, ${i.variant})`, qty: i.qty, rate: i.price, amount: i.price * i.qty })),
-    ...(fees ? [{ desc: 'Delivery, handling & loading charges', qty: 1, rate: fees, amount: fees }] : []),
-    ...(o.bill.discount ? [{ desc: `Discount (${o.bill.coupon})`, qty: 1, rate: -o.bill.discount, amount: -o.bill.discount }] : []),
-  ];
-  const gross = rows.reduce((s, r) => s + r.amount, 0);
-  const g = gstBreakup(gross);
+  if (!o.invoiceNo) {
+    return (
+      <div className="page" style={{ maxWidth: 640 }}>
+        <BackHeader title="Tax invoice" />
+        <Empty icon="FileClock" title={o.status === 'cancelled' ? 'No invoice for this order' : 'Invoice not issued yet'}
+          text={o.status === 'cancelled' ? 'The order was cancelled before dispatch, so no tax invoice was raised.' : 'Your GST invoice is issued when the order leaves our store. It will appear here as soon as it is out for delivery.'}
+          action={<Link className="btn outline" to={`/orders/${o.id}`}>Back to order</Link>} />
+      </div>
+    );
+  }
+  const inv = invoiceLines(o);
+  const pct = (r) => `${+(r * 100).toFixed(1)}%`;
   return (
-    <div className="page" style={{ maxWidth: 860 }}>
+    <div className="page" style={{ maxWidth: 900 }}>
       <div className="row no-print" style={{ marginBottom: 16 }}>
         <BackHeader title="Tax invoice" />
       </div>
@@ -269,9 +273,10 @@ export function Invoice() {
           </div>
           <div className="small" style={{ textAlign: 'right' }}>
             <h2>Tax Invoice</h2>
-            <div>Invoice #: INV-{o.id}</div>
-            <div>Date: {new Date(o.createdAt).toLocaleDateString('en-IN')}</div>
-            <div>Order #: {o.id}</div>
+            <div>Invoice no.: <b>{o.invoiceNo}</b></div>
+            <div>Invoice date: {new Date(o.invoiceDate || o.createdAt).toLocaleDateString('en-IN')}</div>
+            <div>Order: {o.id} · {new Date(o.createdAt).toLocaleDateString('en-IN')}</div>
+            <div>Place of supply: Karnataka (29)</div>
           </div>
         </div>
         <div className="small" style={{ margin: '20px 0' }}>
@@ -283,21 +288,29 @@ export function Invoice() {
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table className="t">
-            <thead><tr><th>#</th><th>Description</th><th className="num">Qty</th><th className="num">Rate</th><th className="num">Amount</th></tr></thead>
+            <thead><tr><th>#</th><th>Description</th><th>HSN/SAC</th><th className="num">Qty</th><th className="num">Taxable value</th><th className="num">GST</th><th className="num">Amount</th></tr></thead>
             <tbody>
-              {rows.map((r, i) => <tr key={i}><td>{i + 1}</td><td>{r.desc}</td><td className="num">{r.qty}</td><td className="num">{money2(r.rate)}</td><td className="num">{money2(r.amount)}</td></tr>)}
+              {inv.rows.map((r, i) => (
+                <tr key={i}><td>{i + 1}</td><td>{r.desc}</td><td>{r.hsn || '—'}</td><td className="num">{r.qty}</td><td className="num">{money2(r.taxable)}</td><td className="num">{pct(r.rate)}</td><td className="num">{money2(r.value)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ overflowX: 'auto', marginTop: 14 }}>
+          <table className="t">
+            <thead><tr><th>GST rate</th><th className="num">Taxable value</th><th className="num">CGST</th><th className="num">SGST</th></tr></thead>
+            <tbody>
+              {inv.summary.map((t) => <tr key={t.rate}><td>{pct(t.rate)} ({pct(t.rate / 2)} + {pct(t.rate / 2)})</td><td className="num">{money2(t.taxable)}</td><td className="num">{money2(t.cgst)}</td><td className="num">{money2(t.sgst)}</td></tr>)}
             </tbody>
             <tfoot>
-              <tr><td colSpan={4} className="num">Taxable value</td><td className="num">{money2(g.taxable)}</td></tr>
-              <tr><td colSpan={4} className="num">CGST @ {(rules.gstRate * 50).toFixed(0)}%</td><td className="num">{money2(g.cgst)}</td></tr>
-              <tr><td colSpan={4} className="num">SGST @ {(rules.gstRate * 50).toFixed(0)}%</td><td className="num">{money2(g.sgst)}</td></tr>
-              <tr><td colSpan={4} className="num"><b>Invoice total</b></td><td className="num"><b>{money2(gross)}</b></td></tr>
-              {o.bill.wallet > 0 && <tr><td colSpan={4} className="num">Paid with credit</td><td className="num">−{money2(o.bill.wallet)}</td></tr>}
-              <tr><td colSpan={4} className="num">Paid via {methodLabel(o.payment.method)}</td><td className="num">{money2(o.bill.total)}</td></tr>
+              {inv.discount > 0 && <tr><td colSpan={3} className="num">Includes discount ({o.bill.coupon || o.bill.offer?.title || 'offer'})</td><td className="num">−{money2(inv.discount)}</td></tr>}
+              <tr><td colSpan={3} className="num"><b>Invoice total</b></td><td className="num"><b>{money2(inv.total)}</b></td></tr>
+              {o.bill.wallet > 0 && <tr><td colSpan={3} className="num">Paid with credit</td><td className="num">−{money2(o.bill.wallet)}</td></tr>}
+              <tr><td colSpan={3} className="num">Paid via {methodLabel(o.payment.method)}</td><td className="num">{money2(o.bill.total)}</td></tr>
             </tfoot>
           </table>
         </div>
-        <p className="xs muted" style={{ marginTop: 16 }}>Prices are inclusive of GST. A single rate is shown for simplicity; configure per-item HSN codes and rates before launch. This is a computer-generated invoice.</p>
+        <p className="xs muted" style={{ marginTop: 16 }}>Prices include GST. Supply within Karnataka, so tax is split into CGST and SGST. This is a computer-generated invoice and needs no signature.</p>
       </div>
       <div className="row no-print" style={{ marginTop: 16 }}>
         <button className="btn dark" onClick={() => window.print()}><Icon name="Printer" size={18} />Print / Save as PDF</button>

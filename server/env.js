@@ -11,7 +11,7 @@ export const env = {
   adminPhones: list(process.env.ADMIN_PHONES), // e.g. +919876543210
   // SMS: 'msg91' | 'twilio' | 'console' (logs the code — development only)
   smsProvider: process.env.SMS_PROVIDER || 'console',
-  msg91: { authKey: process.env.MSG91_AUTH_KEY, templateId: process.env.MSG91_TEMPLATE_ID },
+  msg91: { authKey: process.env.MSG91_AUTH_KEY, templateId: process.env.MSG91_TEMPLATE_ID, orderTemplateId: process.env.MSG91_ORDER_TEMPLATE_ID },
   twilio: { sid: process.env.TWILIO_ACCOUNT_SID, token: process.env.TWILIO_AUTH_TOKEN, from: process.env.TWILIO_FROM },
   // Fixed-code logins for app-store reviewers / QA, e.g. "+919999999999:123456"
   testLogins: Object.fromEntries(list(process.env.TEST_LOGINS).map((x) => x.split(':'))),

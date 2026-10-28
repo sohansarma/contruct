@@ -286,4 +286,52 @@ await step('customers: list, give credit, make admin', async () => {
   assert.ok(stats.customers >= 2 && stats.products > 100);
 });
 
+// ---------------------------------------------------------------- launch gaps
+const { bookableDays } = await import('../src/lib/orderLogic.js');
+const one = { items: [{ productId: 'karam-helmet', variantId: 'karam-helmet-0', qty: 1 }] };
+
+await step('scheduled delivery: past or unknown slots refused, open slot accepted', async () => {
+  const { settings } = await ok('GET', '/catalog');
+  const yesterday = new Date(Date.now() - 864e5 + 5.5 * 36e5).toISOString().slice(0, 10);
+  const bad = await call('POST', '/orders', { ...one, addressId: siteAddr.id, payment: { method: 'cod' }, slot: `${yesterday} ${settings.rules.scheduledSlots[0]}` }, me);
+  assert.equal(bad.status, 400);
+  assert.equal((await call('POST', '/orders', { ...one, addressId: siteAddr.id, payment: { method: 'cod' }, slot: '2030-01-01 3 AM – 4 AM' }, me)).status, 400, 'unknown slot');
+  const day = bookableDays(settings.rules.scheduledSlots, 7)[1];
+  const o = await ok('POST', '/orders', { ...one, addressId: siteAddr.id, payment: { method: 'cod' }, slot: `${day.date} ${day.open[0]}` }, me);
+  assert.equal(o.slot, `${day.date} ${day.open[0]}`);
+  await ok('POST', `/orders/${o.id}/cancel`, { reason: 'test' }, me);
+});
+
+await step('GST: HSN on every line; invoice numbers issued at dispatch, in sequence', async () => {
+  const a = await ok('POST', '/orders', { ...one, addressId: siteAddr.id, payment: { method: 'cod' } }, me);
+  const b = await ok('POST', '/orders', { items: [{ productId: 'ultratech-ppc', variantId: 'ultratech-ppc-0', qty: 2 }], addressId: siteAddr.id, payment: { method: 'cod' } }, me);
+  assert.equal(a.items[0].hsn, '6506');
+  assert.equal(b.items[0].hsn, '2523');
+  assert.equal(a.items[0].gstRate, 0.18);
+  assert.equal(a.invoiceNo, undefined, 'no invoice before dispatch');
+  const nums = [];
+  for (const o of [a, b]) {
+    for (const st of ['confirmed', 'packed']) await ok('POST', `/admin/orders/${o.id}/status`, { status: st }, admin);
+    const d = await ok('POST', `/admin/orders/${o.id}/status`, { status: 'out_for_delivery' }, admin);
+    assert.match(d.invoiceNo, /^BR\/\d{4}\/\d{5}$/);
+    nums.push(+d.invoiceNo.split('/')[2]);
+    const again = await ok('POST', `/admin/orders/${o.id}/status`, { status: 'delivered' }, admin);
+    assert.equal(again.invoiceNo, d.invoiceNo, 'number does not change on delivery');
+  }
+  assert.equal(nums[1], nums[0] + 1, 'consecutive');
+});
+
+await step('account deletion: refused during an order, then removes the profile and signs out', async () => {
+  const o = await ok('POST', '/orders', { ...one, addressId: siteAddr.id, payment: { method: 'cod' } }, me);
+  assert.equal((await call('DELETE', '/me', null, me)).status, 400, 'order in progress');
+  await ok('POST', `/orders/${o.id}/cancel`, { reason: 'test' }, me);
+  await ok('DELETE', '/me', null, me);
+  assert.equal((await call('GET', '/me', null, me)).status, 401, 'old token stops working');
+  const fresh = await login('9876543210', '246810');
+  assert.deepEqual(await ok('GET', '/addresses', null, fresh), [], 'new account starts empty');
+  assert.deepEqual(await ok('GET', '/orders', null, fresh), [], 'old orders are not linked to the new account');
+  const kept = await ok('GET', `/admin/orders?q=${o.id}`, null, admin);
+  assert.equal(kept.length, 1, 'order records kept for GST');
+});
+
 console.log(`\n${passed} end-to-end checks passed against ${API}`);

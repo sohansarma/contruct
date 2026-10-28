@@ -13,6 +13,7 @@ export const brand = {
   legalName: 'BuildRun Retail Pvt. Ltd.',
   gstin: '29XXXXXXXXXXXZX',
   address: 'Bengaluru, Karnataka, India',
+  invoicePrefix: 'BR', // invoice numbers look like BR/2627/00001
 };
 
 export const rules = {

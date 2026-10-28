@@ -61,3 +61,35 @@ export function returnAmount(o) {
   const ids = new Set(o.returnRequest?.itemIds || []);
   return o.items.filter((i) => ids.has(i.key)).reduce((s, i) => s + i.price * i.qty, 0);
 }
+
+// ---------- scheduled delivery slots (store time is IST)
+const IST = 5.5 * 3_600_000;
+export const istDate = (now = Date.now()) => new Date(now + IST).toISOString().slice(0, 10);
+
+/** End of a slot label like "10 AM – 12 PM" or "6 – 8 PM", as hours (0–24). */
+export function slotEndHour(label) {
+  const m = String(label).match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*$/i);
+  if (!m) return null;
+  let h = +m[1] % 12;
+  if (m[3].toUpperCase() === 'PM') h += 12;
+  return h + (+m[2] || 0) / 60;
+}
+
+/** A slot can still be booked if it ends at least an hour from now (IST). */
+export function slotOpen(dateStr, label, now = Date.now()) {
+  const end = slotEndHour(label);
+  if (end == null) return false;
+  const endMs = Date.parse(`${dateStr}T00:00:00Z`) - IST + end * 3_600_000;
+  return endMs - now >= 3_600_000;
+}
+
+/** The next `days` dates (IST) that still have at least one open slot. */
+export function bookableDays(slots, days = 7, now = Date.now()) {
+  const out = [];
+  for (let i = 0; i <= days && out.length < days; i++) {
+    const date = istDate(now + i * 86_400_000);
+    const open = slots.filter((s) => slotOpen(date, s, now));
+    if (open.length) out.push({ date, open, offset: i });
+  }
+  return out;
+}

@@ -33,6 +33,13 @@ const demo = {
     return user;
   },
   async signOut() { ls.set('session', null); },
+  async deleteAccount(user) {
+    if (this._orders().some((o) => o.userId === user.id && ['placed', 'confirmed', 'packed', 'out_for_delivery', 'return_requested'].includes(o.status))) {
+      throw new Error('You have an order in progress. You can delete your account once it is delivered or cancelled.');
+    }
+    const users = ls.get('users', {}); delete users[user.phone]; ls.set('users', users);
+    ls.set(`addr:${user.id}`, []); ls.set('session', null);
+  },
   async updateProfile(user, patch) {
     const users = ls.get('users', {});
     const next = { ...users[user.phone], ...patch };
@@ -57,7 +64,12 @@ const demo = {
     // advance simulated delivery progress
     const all = this._orders();
     let changed = false;
-    const next = all.map((o) => { const s = simulatedStatus(o); if (s !== o) changed = true; return s; });
+    const next = all.map((o) => {
+      let s = simulatedStatus(o);
+      if (['out_for_delivery', 'delivered'].includes(s.status) && !s.invoiceNo) s = { ...s, invoiceNo: `DEMO/${s.id}`, invoiceDate: Date.now() };
+      if (s !== o) changed = true;
+      return s;
+    });
     if (changed) this._saveOrders(next);
     return next;
   },
@@ -176,6 +188,7 @@ const live = {
     return user;
   },
   async signOut() { token.set(null); },
+  async deleteAccount() { await http('DELETE', '/me'); token.set(null); },
   updateProfile: (_u, patch) => http('PATCH', '/me', patch),
 
   async catalog() {

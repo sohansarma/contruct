@@ -6,9 +6,20 @@ import { ObjectId } from 'mongodb';
 import { col, withTxn } from './db.js';
 import { HttpError } from './auth.js';
 import { codAllowed, computeBill, isServiceable, unitPrice } from '../src/lib/pricing.js';
-import { STATUS, canCancel, canReturn, refundDestination, returnAmount } from '../src/lib/orderLogic.js';
-import { rules } from '../src/config.js';
+import { STATUS, canCancel, canReturn, istDate, refundDestination, returnAmount, slotOpen } from '../src/lib/orderLogic.js';
+import { brand, rules } from '../src/config.js';
 import * as rzp from './razorpay.js';
+import { sendOrderSms } from './sms.js';
+
+/** Text the customer about their order; never blocks or fails the request. */
+async function notify(order, status) {
+  try {
+    const u = await col('users').findOne({ _id: order.userId }, { projection: { phone: 1 } });
+    await sendOrderSms(u?.phone, order.id || order._id, status, brand.name);
+  } catch (e) {
+    console.error('order sms', e.message);
+  }
+}
 
 const now = () => Date.now();
 
@@ -39,6 +50,7 @@ export async function priceCart(user, { items, coupon, useWallet }, session) {
     return {
       key: `${p._id}|${v.id}`, productId: p._id, variantId: v.id, name: p.name, brand: p.brand, variant: v.label,
       price: unitPrice(v, qty), mrp: v.mrp, qty, heavy: !!p.heavy, returnable: !!p.returnable, categoryId: p.categoryId,
+      hsn: p.hsn || '', gstRate: p.gstRate ?? rules.gstRate,
     };
   });
   const prior = await col('orders').countDocuments({ userId: user._id, status: { $ne: 'cancelled' } }, { session });
@@ -48,10 +60,18 @@ export async function priceCart(user, { items, coupon, useWallet }, session) {
 }
 
 export async function placeOrder(user, body) {
-  return withTxn(async (session) => {
+  const placed = await withTxn(async (session) => {
     const { lines, bill } = await priceCart(user, body, session);
     if (body.expectedTotal != null && Math.abs(Number(body.expectedTotal) - bill.total) > 0.5) {
       throw Object.assign(new HttpError(409, 'Prices have changed since you opened checkout. Please review your bill.'), { bill });
+    }
+    // scheduled delivery: a known slot, within the next 7 days, not already over
+    let slot = 'asap';
+    if (body.slot && body.slot !== 'asap') {
+      const m = String(body.slot).match(/^(\d{4}-\d{2}-\d{2}) (.+)$/);
+      const ok = m && rules.scheduledSlots.includes(m[2]) && m[1] <= istDate(Date.now() + 7 * 86_400_000) && slotOpen(m[1], m[2]);
+      if (!ok) throw new HttpError(400, 'That delivery slot is no longer available. Please pick another one.');
+      slot = `${m[1]} ${m[2]}`;
     }
     let address;
     try { address = await col('addresses').findOne({ _id: new ObjectId(String(body.addressId)), userId: user._id }, { session }); } catch { /* bad id */ }
@@ -85,7 +105,7 @@ export async function placeOrder(user, body) {
       _id: id, userId: user._id, status: 'placed', createdAt: created, deliveredAt: null,
       items: lines, bill, payment,
       address: { ...addr, id: String(address._id) },
-      slot: body.slot === 'asap' || !body.slot ? 'asap' : String(body.slot).slice(0, 40),
+      slot,
       etaMinutes: rules.etaMin + Math.min(60, lines.length * 3),
       note: String(body.note || '').slice(0, 300),
       gstin: body.gst ? user.gstin || '' : '',
@@ -97,6 +117,8 @@ export async function placeOrder(user, body) {
     if (bill.wallet > 0) await col('wallet_txns').insertOne({ userId: user._id, amount: -bill.wallet, note: `Used on order ${id}`, orderId: id, createdAt: created }, { session });
     return serializeOrder(order);
   });
+  notify({ ...placed, userId: user._id }, 'placed');
+  return placed;
 }
 
 async function issueRefund(order, amount, session) {
@@ -145,6 +167,7 @@ export async function cancelOrder(user, id, reason, { byAdmin = false } = {}) {
     return upd;
   });
   await settleGatewayRefund(refund);
+  notify(order, 'cancelled');
   return serializeOrder(order);
 }
 
@@ -179,6 +202,15 @@ export async function adminSetStatus(admin, id, status, extra = {}) {
     const $set = { status };
     if (status === 'delivered' && !o.deliveredAt) $set.deliveredAt = new Date(at);
     if (status === 'delivered' && o.payment.method === 'cod') $set['payment.status'] = 'paid';
+    // GST: one consecutive invoice series per financial year, issued when goods leave the store
+    if (['out_for_delivery', 'delivered'].includes(status) && !o.invoiceNo) {
+      const now = new Date(Date.now() + 5.5 * 3_600_000);
+      const y = now.getUTCMonth() >= 3 ? now.getUTCFullYear() : now.getUTCFullYear() - 1;
+      const fy = `${String(y).slice(2)}${String(y + 1).slice(2)}`;
+      const c = await col('counters').findOneAndUpdate({ _id: `invoice-${fy}` }, { $inc: { seq: 1 } }, { upsert: true, returnDocument: 'after', session });
+      $set.invoiceNo = `${(brand.invoicePrefix || 'BR').slice(0, 4)}/${fy}/${String(c.seq).padStart(5, '0')}`;
+      $set.invoiceDate = new Date(at);
+    }
     if (status === 'out_for_delivery' && extra.rider) $set.rider = { name: String(extra.rider.name || '').slice(0, 60), phone: String(extra.rider.phone || '').slice(0, 15), vehicle: String(extra.rider.vehicle || '').slice(0, 40) };
     const upd = await col('orders').findOneAndUpdate({ _id: id, status: o.status }, { $set, $push: { history: { status, at } } }, { session, returnDocument: 'after' });
     if (!upd) throw new HttpError(409, 'Order changed, please retry.');
@@ -192,5 +224,6 @@ export async function adminSetStatus(admin, id, status, extra = {}) {
     return upd;
   });
   await settleGatewayRefund(refund);
+  notify(order, status);
   return serializeOrder(order);
 }

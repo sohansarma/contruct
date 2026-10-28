@@ -6,6 +6,7 @@ import { money } from '../lib/format.js';
 import { codAllowed, computeBill, isServiceable, offerLive, validateCoupon } from '../lib/pricing.js';
 import { coupons, rules } from '../config.js';
 import { api } from '../lib/api.js';
+import { bookableDays, slotOpen } from '../lib/orderLogic.js';
 import { payOnline } from '../lib/payments.js';
 import { useI18n } from '../lib/i18n.jsx';
 
@@ -41,13 +42,16 @@ export function BillCard({ bill }) {
 }
 
 export function Cart() {
-  const { lines, setQty, user, clearCart } = useStore();
+  const { lines, setQty, user, clearCart, reloadCatalog } = useStore();
   const [coupon, setCoupon] = useState(() => sessionStorage.getItem('br:coupon') || '');
   const [couponOpen, setCouponOpen] = useState(false);
   const { orderCount } = useAccountData(user);
   const navigate = useNavigate();
   const { t } = useI18n();
-  const bill = computeBill(lines, { coupon, isFirstOrder: orderCount === 0 });
+  // re-read prices and stock so the cart never shows stale data
+  useEffect(() => { reloadCatalog(); }, [reloadCatalog]);
+  const unavailable = lines.filter((l) => !l.product.inStock);
+  const bill = computeBill(lines.filter((l) => l.product.inStock), { coupon, isFirstOrder: orderCount === 0 });
   useEffect(() => { sessionStorage.setItem('br:coupon', bill.coupon || ''); }, [bill.coupon]);
 
   if (!lines.length) {
@@ -72,11 +76,16 @@ export function Cart() {
                   <div className="small" style={{ fontWeight: 600 }}>{l.product.name}</div>
                   <div className="xs muted">{l.product.brand} · {l.variant.label}</div>
                   {!l.product.returnable && <div className="xs faint">Non-returnable</div>}
+                  {!l.product.inStock && <div className="xs red" style={{ fontWeight: 600 }}>Out of stock</div>}
                 </div>
-                <div className="col" style={{ alignItems: 'flex-end', gap: 6 }}>
-                  <Stepper qty={l.qty} onChange={(n) => setQty(l.product.id, l.variant.id, n)} />
-                  <div className="small" style={{ fontWeight: 600 }}>{money(l.price * l.qty)}</div>
-                </div>
+                {l.product.inStock ? (
+                  <div className="col" style={{ alignItems: 'flex-end', gap: 6 }}>
+                    <Stepper qty={l.qty} onChange={(n) => setQty(l.product.id, l.variant.id, n)} />
+                    <div className="small" style={{ fontWeight: 600 }}>{money(l.price * l.qty)}</div>
+                  </div>
+                ) : (
+                  <button className="btn sm danger" onClick={() => setQty(l.product.id, l.variant.id, 0)}>Remove</button>
+                )}
               </div>
             ))}
           </div>
@@ -91,7 +100,8 @@ export function Cart() {
         </div>
         <div className="col sticky" style={{ gap: 14 }}>
           <BillCard bill={bill} />
-          <button className="btn primary block" onClick={() => navigate(user ? '/checkout' : '/login?next=/checkout')}>
+          {unavailable.length > 0 && <div className="banner warn small"><Icon name="TriangleAlert" size={16} />{unavailable.length === 1 ? 'One item is' : `${unavailable.length} items are`} out of stock. Remove {unavailable.length === 1 ? 'it' : 'them'} to continue.</div>}
+          <button className="btn primary block" disabled={unavailable.length > 0} onClick={() => navigate(user ? '/checkout' : '/login?next=/checkout')}>
             {t(user ? 'Proceed to checkout' : 'Sign in to checkout')} <Icon name="ArrowRight" size={18} />
           </button>
           <p className="xs muted center">No minimum order. Prices include GST.</p>
@@ -180,20 +190,23 @@ const METHODS = [
 ];
 
 function nextDays(n = 7) {
-  return Array.from({ length: n }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() + i); d.setHours(0, 0, 0, 0);
-    return { value: d.toISOString().slice(0, 10), label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' }) };
-  });
+  return bookableDays(rules.scheduledSlots, n).map(({ date, open, offset }) => ({
+    value: date,
+    open,
+    label: offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : new Date(`${date}T12:00:00+05:30`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' }),
+  }));
 }
 
 export function Checkout() {
-  const { lines, user, clearCart, notify, location, setLocation } = useStore();
+  const { lines: allLines, user, clearCart, notify, location, setLocation, reloadCatalog } = useStore();
+  const lines = allLines.filter((l) => l.product.inStock);
   const { addresses, setAddresses, wallet, orderCount } = useAccountData(user);
+  const days = useMemo(() => nextDays(), []);
   const [addrId, setAddrId] = useState(null);
   const [adding, setAdding] = useState(false);
   const [slotMode, setSlotMode] = useState('asap');
-  const [day, setDay] = useState(nextDays()[0].value);
-  const [slot, setSlot] = useState(rules.scheduledSlots[0]);
+  const [day, setDay] = useState(days[0]?.value);
+  const [slot, setSlot] = useState(days[0]?.open[0]);
   const [method, setMethod] = useState('upi');
   const [useWallet, setUseWallet] = useState(false);
   const [note, setNote] = useState('');
@@ -202,6 +215,9 @@ export function Checkout() {
   const [err, setErr] = useState('');
   const navigate = useNavigate();
   const { t } = useI18n();
+  useEffect(() => { reloadCatalog(); }, [reloadCatalog]);
+  const openSlots = days.find((d) => d.value === day)?.open || [];
+  useEffect(() => { if (!openSlots.includes(slot)) setSlot(openSlots[0]); }, [day]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (addrId || !addresses.length) return;
@@ -212,18 +228,19 @@ export function Checkout() {
   const addr = addresses.find((a) => a.id === addrId);
   const coupon = sessionStorage.getItem('br:coupon') || '';
   const bill = computeBill(lines, { coupon, isFirstOrder: orderCount === 0, walletBalance: wallet.balance, useWallet });
-  const days = useMemo(() => nextDays(), []);
   const serviceable = addr && isServiceable(addr.pincode);
   const cod = addr && codAllowed(addr.pincode);
   const payMethod = bill.total === 0 ? 'wallet_credit' : method;
 
-  if (!lines.length) return <div className="page"><Empty icon="ShoppingBag" title="Your cart is empty" action={<Link className="btn primary" to="/">Shop now</Link>} /></div>;
+  if (!lines.length) return <div className="page"><Empty icon="ShoppingBag" title={allLines.length ? 'Items in your cart are out of stock' : 'Your cart is empty'} action={<Link className="btn primary" to={allLines.length ? '/cart' : '/'}>{allLines.length ? 'Review cart' : 'Shop now'}</Link>} /></div>;
 
   const place = async () => {
     setErr('');
     if (!addr) return setErr('Add a delivery address.');
     if (!serviceable) return setErr('This address is outside our delivery area.');
     if (payMethod === 'cod' && !cod) return setErr('Pay on delivery isn’t available here.');
+    if (lines.length < allLines.length) return setErr('Remove out-of-stock items from your cart first.');
+    if (slotMode === 'later' && (!slot || !slotOpen(day, slot))) return setErr('That delivery slot has passed. Pick another one.');
     setBusy(true);
     try {
       const draft = {
@@ -252,7 +269,11 @@ export function Checkout() {
       notify('Order placed');
       navigate(`/orders/${order.id}?placed=1`, { replace: true });
     } catch (x) {
-      setErr(x.message || 'Something went wrong. You have not been charged.');
+      if (x.status === 409) {
+        // prices or stock changed: refresh so the bill shown is what will be charged
+        await reloadCatalog();
+        setErr(`${x.message} Your bill has been updated; check it and place the order again.`);
+      } else setErr(x.message || 'Something went wrong. You have not been charged.');
     } finally { setBusy(false); }
   };
 
@@ -287,7 +308,7 @@ export function Checkout() {
             {slotMode === 'later' && (
               <div className="col">
                 <div className="chips">{days.map((d) => <button key={d.value} className={`chip ${day === d.value ? 'on' : ''}`} onClick={() => setDay(d.value)}>{d.label}</button>)}</div>
-                <div className="chips" style={{ flexWrap: 'wrap' }}>{rules.scheduledSlots.map((s) => <button key={s} className={`chip ${slot === s ? 'on' : ''}`} onClick={() => setSlot(s)}>{s}</button>)}</div>
+                <div className="chips" style={{ flexWrap: 'wrap' }}>{openSlots.map((s) => <button key={s} className={`chip ${slot === s ? 'on' : ''}`} onClick={() => setSlot(s)}>{s}</button>)}</div>
               </div>
             )}
             <div className="field" style={{ marginTop: 12 }}>

@@ -15,10 +15,11 @@ import { isServiceable } from '../src/lib/pricing.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // tiny in-memory rate limiter (per IP + route); use a shared store if you run many instances
-function limit(max, windowMs) {
+function limit(max, windowMs, { perUser = false } = {}) {
   const hits = new Map();
   return (req, res, next) => {
-    const k = req.ip + req.path;
+    // per signed-in customer where possible: many mobile users share one carrier IP
+    const k = (perUser && req.user ? String(req.user._id) : req.ip) + req.path;
     const t = Date.now();
     const arr = (hits.get(k) || []).filter((x) => t - x < windowMs);
     arr.push(t);
@@ -91,6 +92,17 @@ export function createApp() {
     res.json(publicUser(u));
   });
 
+  // Delete my account (required by Google Play and the App Store). Orders and
+  // invoices are kept for GST records, detached from any personal profile.
+  api.delete('/me', user, async (req, res) => {
+    const active = await col('orders').countDocuments({ userId: req.user._id, status: { $in: ['placed', 'confirmed', 'packed', 'out_for_delivery', 'return_requested'] } });
+    if (active) throw new HttpError(400, 'You have an order in progress. You can delete your account once it is delivered or cancelled.');
+    await col('addresses').deleteMany({ userId: req.user._id });
+    await col('otps').deleteMany({ phone: req.user.phone });
+    await col('users').updateOne({ _id: req.user._id }, { $set: { phone: `deleted:${req.user._id}`, name: '', email: '', gstin: '', businessName: '', isAdmin: false, deletedAt: new Date() } });
+    res.json({ ok: true });
+  });
+
   // ---------- addresses
   api.get('/addresses', user, async (req, res) => res.json((await col('addresses').find({ userId: req.user._id }).toArray()).map(addrOut)));
   api.post('/addresses', user, async (req, res) => {
@@ -113,7 +125,7 @@ export function createApp() {
 
   // ---------- orders
   api.post('/orders/quote', user, async (req, res) => res.json((await priceCart(req.user, req.body)).bill));
-  api.post('/orders', user, limit(10, 60_000), async (req, res) => res.status(201).json(await placeOrder(req.user, req.body)));
+  api.post('/orders', user, limit(20, 60_000, { perUser: true }), async (req, res) => res.status(201).json(await placeOrder(req.user, req.body)));
   api.get('/orders', user, async (req, res) => res.json((await col('orders').find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(100).toArray()).map(serializeOrder)));
   api.get('/orders/:id', user, async (req, res) => {
     const o = await col('orders').findOne(req.user.isAdmin ? { _id: req.params.id } : { _id: req.params.id, userId: req.user._id });

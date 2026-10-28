@@ -165,3 +165,45 @@ describe('delivery area text', () => {
     expect([...s].sort()).toEqual(['560001', '560002', '560004', '560005', '562125']);
   });
 });
+
+describe('delivery slots', async () => {
+  const { slotEndHour, slotOpen, bookableDays, istDate } = await import('../src/lib/orderLogic.js');
+  // 2026-10-28 16:43 IST = 11:13 UTC
+  const now = Date.parse('2026-10-28T11:13:00Z');
+  it('reads slot end times', () => {
+    expect(slotEndHour('8 – 10 AM')).toBe(10);
+    expect(slotEndHour('10 AM – 12 PM')).toBe(12);
+    expect(slotEndHour('6 – 8 PM')).toBe(20);
+  });
+  it('only offers slots that end at least an hour from now (IST)', () => {
+    expect(slotOpen('2026-10-28', '2 – 4 PM', now)).toBe(false);
+    expect(slotOpen('2026-10-28', '4 – 6 PM', now)).toBe(true);
+    expect(slotOpen('2026-10-27', '6 – 8 PM', now)).toBe(false);
+    const days = bookableDays(['8 – 10 AM', '4 – 6 PM', '6 – 8 PM'], 7, now);
+    expect(days[0]).toEqual({ date: '2026-10-28', open: ['4 – 6 PM', '6 – 8 PM'], offset: 0 });
+    expect(days[1].open).toHaveLength(3);
+    expect(istDate(Date.parse('2026-10-28T20:00:00Z'))).toBe('2026-10-29');
+  });
+});
+
+describe('GST invoice', async () => {
+  const { invoiceLines } = await import('../src/lib/pricing.js');
+  const order = {
+    items: [
+      { name: 'Cement', brand: 'X', variant: '50 kg', price: 405, qty: 10, hsn: '2523', gstRate: 0.18 },
+      { name: 'Helmet', brand: 'Y', variant: 'Each', price: 105, qty: 2, hsn: '6506', gstRate: 0.05 },
+    ],
+    bill: { discount: 126, delivery: 0, handling: 9, loading: 100 },
+  };
+  it('spreads the discount, splits tax by rate and adds the service line', () => {
+    const inv = invoiceLines(order, 0.18);
+    expect(inv.rows.map((r) => r.hsn)).toEqual(['2523', '6506', 'SAC 9965']);
+    expect(inv.total).toBe(4050 + 210 - 126 + 109);
+    expect(inv.rows[0].value).toBe(3930.21); // 4050 − 4050/4260 of the ₹126 discount
+    expect(+inv.rows.reduce((t, r) => t + r.value, 0).toFixed(2)).toBe(inv.total);
+    const r18 = inv.summary.find((s) => s.rate === 0.18);
+    const r5 = inv.summary.find((s) => s.rate === 0.05);
+    expect(r5.taxable).toBe(+(203.79 / 1.05).toFixed(2));
+    expect(+(r18.taxable + r18.cgst + r18.sgst + r5.taxable + r5.cgst + r5.sgst).toFixed(0)).toBe(inv.total);
+  });
+});

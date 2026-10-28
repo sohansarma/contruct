@@ -8,7 +8,7 @@ import ProductIllustration from '../../components/ProductArt.jsx';
 import { AdminHeader } from './AdminLayout.jsx';
 import { download, parseCsv, toCsv } from './common.jsx';
 
-const CSV_COLUMNS = ['id', 'name', 'brand', 'category', 'option', 'price', 'mrp', 'tiers', 'in_stock', 'returnable', 'heavy', 'active', 'images', 'description'];
+const CSV_COLUMNS = ['id', 'name', 'brand', 'category', 'option', 'price', 'mrp', 'tiers', 'hsn', 'gst_rate', 'in_stock', 'returnable', 'heavy', 'active', 'images', 'description'];
 
 export default function AdminProducts() {
   const { notify, reloadCatalog } = useStore();
@@ -37,7 +37,7 @@ export default function AdminProducts() {
     const rows = (list || []).flatMap((p) => p.variants.map((v) => ({
       id: p.id, name: p.name, brand: p.brand, category: p.categoryId, option: v.label, price: v.price, mrp: v.mrp,
       tiers: (v.tiers || []).map((t) => `${t.min}:${t.price}`).join(';'), in_stock: p.inStock ? 'yes' : 'no', returnable: p.returnable ? 'yes' : 'no',
-      heavy: p.heavy ? 'yes' : 'no', active: p.active ? 'yes' : 'no', images: (p.images || []).join('|'), description: p.description || '',
+      hsn: p.hsn || '', gst_rate: Math.round((p.gstRate ?? 0.18) * 100), heavy: p.heavy ? 'yes' : 'no', active: p.active ? 'yes' : 'no', images: (p.images || []).join('|'), description: p.description || '',
     })));
     download(`products-${new Date().toISOString().slice(0, 10)}.csv`, toCsv(rows, CSV_COLUMNS));
   };

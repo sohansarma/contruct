@@ -111,3 +111,37 @@ export function gstBreakup(amount, rate = rules.gstRate) {
   const tax = amount - taxable;
   return { taxable: +taxable.toFixed(2), cgst: +(tax / 2).toFixed(2), sgst: +(tax / 2).toFixed(2), tax: +tax.toFixed(2) };
 }
+
+/**
+ * Tax invoice lines from an order. Prices are GST-inclusive; a coupon discount
+ * is spread over the goods in proportion to their value; delivery/handling/
+ * loading charges are a service line at the store rate.
+ */
+export function invoiceLines(order, storeRate = rules.gstRate) {
+  const goods = order.items.map((i) => ({ desc: `${i.name} (${i.brand}, ${i.variant})`, hsn: i.hsn || '', rate: i.gstRate ?? storeRate, qty: i.qty, unit: i.price, value: i.price * i.qty }));
+  const goodsTotal = goods.reduce((s, g) => s + g.value, 0) || 1;
+  const discount = order.bill.discount || 0;
+  const fees = (order.bill.delivery || 0) + (order.bill.handling || 0) + (order.bill.loading || 0);
+  const rows = goods.map((g) => ({ ...g, value: +(g.value - (discount * g.value) / goodsTotal).toFixed(2) }));
+  // put any rounding paisa on the last item so lines add up to the bill exactly
+  if (rows.length) {
+    const diff = +(goodsTotal - discount - rows.reduce((s, r) => s + r.value, 0)).toFixed(2);
+    rows[rows.length - 1].value = +(rows[rows.length - 1].value + diff).toFixed(2);
+  }
+  if (fees) rows.push({ desc: 'Delivery, handling & loading', hsn: 'SAC 9965', rate: storeRate, qty: 1, unit: fees, value: fees });
+  for (const r of rows) {
+    r.taxable = +(r.value / (1 + r.rate)).toFixed(2);
+    r.tax = +(r.value - r.taxable).toFixed(2);
+  }
+  const byRate = {};
+  for (const r of rows) {
+    const k = r.rate;
+    byRate[k] ||= { rate: k, taxable: 0, cgst: 0, sgst: 0 };
+    byRate[k].taxable += r.taxable;
+    byRate[k].cgst += r.tax / 2;
+    byRate[k].sgst += r.tax / 2;
+  }
+  const summary = Object.values(byRate).map((s) => ({ rate: s.rate, taxable: +s.taxable.toFixed(2), cgst: +s.cgst.toFixed(2), sgst: +s.sgst.toFixed(2) }));
+  const total = +rows.reduce((s, r) => s + r.value, 0).toFixed(2);
+  return { rows, summary, total, discount };
+}

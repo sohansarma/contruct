@@ -55,6 +55,9 @@ One codebase ships the **website**, the **Android app** and the **iOS app**.
   - **Customers:** search, orders and spend, add or deduct wallet credit, give or remove admin access.
   - **Bulk quotes:** track each lead as new → contacted → won or lost.
   - **Settings:** store name, support contacts, invoice details and GST rate; delivery, handling and loading fees; free-delivery threshold; delivery time; time slots; delivery pincodes (ranges and exclusions); cash-on-delivery areas; cancel and return windows.
+- **GST invoices:** consecutive invoice numbers per financial year (e.g. `BR/2627/00001`), issued when an order is dispatched. Each line carries its HSN code and GST rate, with a CGST/SGST summary. HSN codes and rates are set per product in the admin; the starter values (18%) must be confirmed by your CA.
+- **Order texts:** SMS when an order is placed, confirmed, out for delivery, delivered, cancelled or returned.
+- **Account deletion in the app** (Account → Delete my account), as Google Play and the App Store require. Order and invoice records are kept as GST law requires.
 - Hindi and English, light and dark mode, FAQ and policy pages, and an SEO price-list page per category.
 
 **Server-side rules:** every amount is recomputed on the server from MongoDB using the same pricing code as the app, so a customer can't change a price, reuse a payment, skip payment or overspend credit. All of this is covered by the end-to-end tests.
@@ -104,7 +107,7 @@ Create a cluster in the Mumbai region and a database user, and allow your host's
 The simplest Indian option is **MSG91**:
 
 1. Register your sender ID and an OTP template with DLT. Use the variable `##otp##`.
-2. Set `SMS_PROVIDER=msg91`, `MSG91_AUTH_KEY` and `MSG91_TEMPLATE_ID`.
+2. Set `SMS_PROVIDER=msg91`, `MSG91_AUTH_KEY` and `MSG91_TEMPLATE_ID`. For order-status texts, register a second template with the variables `##order##` and `##status##` and set `MSG91_ORDER_TEMPLATE_ID`.
 
 Twilio is also supported. For App Store and Play Store review, add a reviewer login: `TEST_LOGINS=+919999999999:123456`.
 

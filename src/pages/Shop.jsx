@@ -226,6 +226,7 @@ export function Category() {
   const [brandSel, setBrandSel] = useState([]);
   const [sort, setSort] = useState('relevance');
   useEffect(() => { setBrandSel([]); window.scrollTo(0, 0); }, [id]);
+  useEffect(() => { if (cat) document.title = `${cat.name} price in ${brand.city} · Buy online · ${brand.name}`; }, [cat]);
   const all = products.filter((p) => p.categoryId === id);
   const list = sortList(all.filter((p) => !brandSel.length || brandSel.includes(p.brand)), sort);
   if (!cat) return <NotFound />;
@@ -254,6 +255,11 @@ export function Product() {
   const [img, setImg] = useState(0);
   const { t } = useI18n();
   useEffect(() => { setVid(null); setImg(0); window.scrollTo(0, 0); }, [id]);
+  useEffect(() => {
+    if (!p) return;
+    document.title = `${p.name}${p.unit ? ` (${p.unit})` : ''} · ${brand.name}`;
+    document.querySelector('meta[name="description"]')?.setAttribute('content', `Buy ${p.name} by ${p.brand} in ${brand.city}. Delivered in about an hour.`);
+  }, [p]);
   if (!p) return <NotFound />;
   const v = p.variants.find((x) => x.id === vid) || p.variants[0];
   const qty = qtyOf(p.id, v.id);

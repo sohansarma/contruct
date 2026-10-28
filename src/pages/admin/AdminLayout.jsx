@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Route, Routes } from 'react-router-dom';
+import { api, mode } from '../../lib/api.js';
 import { useStore } from '../../lib/store.jsx';
 import { Empty, Icon } from '../../components/ui.jsx';
-import { mode } from '../../lib/api.js';
 import Dashboard from './Dashboard.jsx';
 import AdminOrders from './AdminOrders.jsx';
 import AdminProducts from './AdminProducts.jsx';
@@ -23,8 +24,27 @@ const NAV = [
   ['settings', 'Settings', 'Settings'],
 ];
 
+/** Orders waiting on the store: new, in progress or returns to review. Polls every 30 s. */
+function usePending(enabled) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!enabled || mode === 'demo') return;
+    const base = document.title.replace(/^\(\d+\) /, '');
+    const load = () => api.admin.stats().then((s) => {
+      const count = s.active + s.returns;
+      setN(count);
+      document.title = count ? `(${count}) ${base}` : base;
+    }).catch(() => {});
+    load();
+    const t = setInterval(load, 30000);
+    return () => { clearInterval(t); document.title = base; };
+  }, [enabled]);
+  return n;
+}
+
 export default function AdminLayout() {
   const { user, ready } = useStore();
+  const pending = usePending(!!user?.isAdmin);
   if (!ready) return null;
   if (!user?.isAdmin) {
     return (
@@ -37,7 +57,7 @@ export default function AdminLayout() {
     <div className="page admin">
       <nav className="admin-nav glass" aria-label="Admin">
         {NAV.map(([to, label, icon]) => (
-          <NavLink key={to} to={`/admin/${to}`} end={to === ''}><Icon name={icon} size={18} /><span>{label}</span></NavLink>
+          <NavLink key={to} to={`/admin/${to}`} end={to === ''}><Icon name={icon} size={18} /><span>{label}</span>{to === 'orders' && pending > 0 && <span className="badge" aria-label={`${pending} orders need action`}>{pending}</span>}</NavLink>
         ))}
       </nav>
       <div className="admin-main">

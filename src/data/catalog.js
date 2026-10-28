@@ -6,30 +6,30 @@
 // Edit prices in the admin dashboard (Admin → Products) or here, then re-seed.
 
 export const categories = [
-  { id: 'cement', art: ['bag', '#f2c230'], name: 'Cement', icon: 'Package', tint: '#8e8e93', blurb: 'PPC & OPC cement, white cement' },
-  { id: 'tiling', art: ['bag', '#2f6db5'], name: 'Tiling', icon: 'Grid3x3', tint: '#5e5ce6', blurb: 'Tile adhesives, grouts, spacers' },
-  { id: 'painting', art: ['bucket', '#e94b3c'], name: 'Painting', icon: 'PaintRoller', tint: '#ff375f', blurb: 'Wall putty, primers, emulsions, tools' },
-  { id: 'waterproofing', art: ['can', '#e5262b'], name: 'Waterproofing', icon: 'Droplets', tint: '#0a84ff', blurb: 'Admixtures, roof & bathroom coatings' },
-  { id: 'plywood', art: ['sheet', '#c8935a'], name: 'Plywood, MDF & HDHMR', icon: 'Layers', tint: '#bf8a54', blurb: 'MR & BWP ply, MDF, HDHMR, laminates' },
-  { id: 'adhesives', art: ['jar', '#f5d327'], name: 'Fevicol', icon: 'Pipette', tint: '#ff9f0a', blurb: 'Wood adhesives, epoxy, sealants' },
-  { id: 'wires', art: ['coil', '#e5262b'], name: 'Wires, MCB & Distribution Boards', icon: 'Cable', tint: '#ff453a', blurb: 'FR-LSH / FRLS wires, MCBs, RCCBs, DBs' },
-  { id: 'kitchen', art: ['sink', '#c7ccd1'], name: 'Kitchen Sinks & Faucets', icon: 'CookingPot', tint: '#ff6482', blurb: 'Steel & quartz sinks, sink mixers' },
-  { id: 'sanitary', art: ['tap', '#c7ccd1'], name: 'Sanitary Fittings', icon: 'ShowerHead', tint: '#66d4cf', blurb: 'Taps, showers, health faucets, traps' },
-  { id: 'switches', art: ['switch', '#ffffff'], name: 'Switches & Sockets', icon: 'ToggleRight', tint: '#64d2ff', blurb: 'Modular switches, sockets, plates' },
-  { id: 'hinges', art: ['hinge', '#c7ccd1'], name: 'Hinges & Handles', icon: 'DoorOpen', tint: '#a2845e', blurb: 'Soft-close hinges, channels, handles' },
-  { id: 'kitchen-systems', art: ['drawer', '#e8e8ea'], name: 'Kitchen Systems', icon: 'Archive', tint: '#bf5af2', blurb: 'Tandem boxes, baskets, lift-ups' },
-  { id: 'wardrobe', art: ['strut', '#1c1c1e'], name: 'Wardrobe & Bed Fittings', icon: 'BedDouble', tint: '#ac8e68', blurb: 'Wardrobe lifts, bed fittings, struts' },
-  { id: 'locks', art: ['padlock', '#b08d57'], name: 'Door Locks', icon: 'Lock', tint: '#636366', blurb: 'Mortise, digital & cylindrical locks' },
-  { id: 'conduits', art: ['pipe', '#f2f2f2'], name: 'Conduits & GI Boxes', icon: 'Route', tint: '#8e6e4e', blurb: 'PVC conduits, bends, GI modular boxes' },
-  { id: 'lighting', art: ['bulb', '#fff8d6'], name: 'Lighting', icon: 'Lightbulb', tint: '#e5b400', blurb: 'LED bulbs, battens, panels, strips' },
-  { id: 'pipes', art: ['elbow', '#e9dcc3'], name: 'CPVC Pipes & Overhead Tanks', icon: 'Waves', tint: '#40c8e0', blurb: 'CPVC / UPVC pipes, fittings, tanks' },
-  { id: 'fans', art: ['fan', '#ffffff'], name: 'Ceiling Fans', icon: 'Fan', tint: '#30d158', blurb: 'BLDC & regular ceiling, exhaust fans' },
-  { id: 'tools', art: ['drill', '#1f5fa8'], name: 'Power Tools', icon: 'Drill', tint: '#ff9f0a', blurb: 'Drills, grinders, accessories' },
-  { id: 'cctv', art: ['domecam', '#ffffff'], name: 'CCTV', icon: 'Cctv', tint: '#5856d6', blurb: 'Camera kits, Wi-Fi cameras, doorbells' },
-  { id: 'power-backup', art: ['inverter', '#1f5fa8'], name: 'Home Appliances & Power Backup', icon: 'BatteryCharging', tint: '#34c759', blurb: 'Inverters, batteries, stabilisers, geysers' },
-  { id: 'hardware', art: ['screws', '#a1a7ad'], name: 'General Hardware', icon: 'Wrench', tint: '#8e8e93', blurb: 'Screws, anchors, nails, binding wire' },
-  { id: 'safety', art: ['helmet', '#ffcc00'], name: 'Safety Gear', icon: 'HardHat', tint: '#e5a800', blurb: 'Helmets, gloves, goggles, harnesses' },
-  { id: 'glass-hardware', art: ['handle', '#c7ccd1'], name: 'Glass Door Hardware', icon: 'PanelsTopLeft', tint: '#5ac8fa', blurb: 'Patch fittings, floor springs, handles' },
+  { id: 'cement', hsn: '2523', art: ['bag', '#f2c230'], name: 'Cement', icon: 'Package', tint: '#8e8e93', blurb: 'PPC & OPC cement, white cement' },
+  { id: 'tiling', hsn: '3214', art: ['bag', '#2f6db5'], name: 'Tiling', icon: 'Grid3x3', tint: '#5e5ce6', blurb: 'Tile adhesives, grouts, spacers' },
+  { id: 'painting', hsn: '3209', art: ['bucket', '#e94b3c'], name: 'Painting', icon: 'PaintRoller', tint: '#ff375f', blurb: 'Wall putty, primers, emulsions, tools' },
+  { id: 'waterproofing', hsn: '3824', art: ['can', '#e5262b'], name: 'Waterproofing', icon: 'Droplets', tint: '#0a84ff', blurb: 'Admixtures, roof & bathroom coatings' },
+  { id: 'plywood', hsn: '4412', art: ['sheet', '#c8935a'], name: 'Plywood, MDF & HDHMR', icon: 'Layers', tint: '#bf8a54', blurb: 'MR & BWP ply, MDF, HDHMR, laminates' },
+  { id: 'adhesives', hsn: '3506', art: ['jar', '#f5d327'], name: 'Fevicol', icon: 'Pipette', tint: '#ff9f0a', blurb: 'Wood adhesives, epoxy, sealants' },
+  { id: 'wires', hsn: '8544', art: ['coil', '#e5262b'], name: 'Wires, MCB & Distribution Boards', icon: 'Cable', tint: '#ff453a', blurb: 'FR-LSH / FRLS wires, MCBs, RCCBs, DBs' },
+  { id: 'kitchen', hsn: '7324', art: ['sink', '#c7ccd1'], name: 'Kitchen Sinks & Faucets', icon: 'CookingPot', tint: '#ff6482', blurb: 'Steel & quartz sinks, sink mixers' },
+  { id: 'sanitary', hsn: '8481', art: ['tap', '#c7ccd1'], name: 'Sanitary Fittings', icon: 'ShowerHead', tint: '#66d4cf', blurb: 'Taps, showers, health faucets, traps' },
+  { id: 'switches', hsn: '8536', art: ['switch', '#ffffff'], name: 'Switches & Sockets', icon: 'ToggleRight', tint: '#64d2ff', blurb: 'Modular switches, sockets, plates' },
+  { id: 'hinges', hsn: '8302', art: ['hinge', '#c7ccd1'], name: 'Hinges & Handles', icon: 'DoorOpen', tint: '#a2845e', blurb: 'Soft-close hinges, channels, handles' },
+  { id: 'kitchen-systems', hsn: '8302', art: ['drawer', '#e8e8ea'], name: 'Kitchen Systems', icon: 'Archive', tint: '#bf5af2', blurb: 'Tandem boxes, baskets, lift-ups' },
+  { id: 'wardrobe', hsn: '8302', art: ['strut', '#1c1c1e'], name: 'Wardrobe & Bed Fittings', icon: 'BedDouble', tint: '#ac8e68', blurb: 'Wardrobe lifts, bed fittings, struts' },
+  { id: 'locks', hsn: '8301', art: ['padlock', '#b08d57'], name: 'Door Locks', icon: 'Lock', tint: '#636366', blurb: 'Mortise, digital & cylindrical locks' },
+  { id: 'conduits', hsn: '3917', art: ['pipe', '#f2f2f2'], name: 'Conduits & GI Boxes', icon: 'Route', tint: '#8e6e4e', blurb: 'PVC conduits, bends, GI modular boxes' },
+  { id: 'lighting', hsn: '9405', art: ['bulb', '#fff8d6'], name: 'Lighting', icon: 'Lightbulb', tint: '#e5b400', blurb: 'LED bulbs, battens, panels, strips' },
+  { id: 'pipes', hsn: '3917', art: ['elbow', '#e9dcc3'], name: 'CPVC Pipes & Overhead Tanks', icon: 'Waves', tint: '#40c8e0', blurb: 'CPVC / UPVC pipes, fittings, tanks' },
+  { id: 'fans', hsn: '8414', art: ['fan', '#ffffff'], name: 'Ceiling Fans', icon: 'Fan', tint: '#30d158', blurb: 'BLDC & regular ceiling, exhaust fans' },
+  { id: 'tools', hsn: '8467', art: ['drill', '#1f5fa8'], name: 'Power Tools', icon: 'Drill', tint: '#ff9f0a', blurb: 'Drills, grinders, accessories' },
+  { id: 'cctv', hsn: '8525', art: ['domecam', '#ffffff'], name: 'CCTV', icon: 'Cctv', tint: '#5856d6', blurb: 'Camera kits, Wi-Fi cameras, doorbells' },
+  { id: 'power-backup', hsn: '8504', art: ['inverter', '#1f5fa8'], name: 'Home Appliances & Power Backup', icon: 'BatteryCharging', tint: '#34c759', blurb: 'Inverters, batteries, stabilisers, geysers' },
+  { id: 'hardware', hsn: '7318', art: ['screws', '#a1a7ad'], name: 'General Hardware', icon: 'Wrench', tint: '#8e8e93', blurb: 'Screws, anchors, nails, binding wire' },
+  { id: 'safety', hsn: '6506', art: ['helmet', '#ffcc00'], name: 'Safety Gear', icon: 'HardHat', tint: '#e5a800', blurb: 'Helmets, gloves, goggles, harnesses' },
+  { id: 'glass-hardware', hsn: '8302', art: ['handle', '#c7ccd1'], name: 'Glass Door Hardware', icon: 'PanelsTopLeft', tint: '#5ac8fa', blurb: 'Patch fittings, floor springs, handles' },
 ];
 
 // [id, name, brand, unit, price, mrp, opts]
@@ -203,6 +203,8 @@ const raw = {
 };
 
 // Weekly deals and new arrivals (by product id)
+const HSN = {"ap-trucare-putty-40": "3214", "ap-trucare-acrylic-putty": "3214", "birla-wallcare-putty": "3214", "birla-wallseal-putty": "3214", "birla-white-cement": "2523", "roller-9": "9603", "brush-set": "9603", "masking-tape": "3919", "mcb-sp": "8536", "rccb-dp-40": "8536", "db-8way": "8537", "jaquar-sink-mixer": "8481", "sink-coupling": "3922", "floor-trap": "3922", "braided-connection": "8481", "gi-modular-box": "7326", "philips-led-bulb": "8539", "sintex-tank-1000": "3925", "ashirvad-solvent": "3506", "exide-tubular-150": "8507", "racold-geyser-15": "8516", "vguard-stabiliser": "8504", "cut-gloves": "6116", "karam-goggles": "9004", "karam-harness": "6307", "m-seal": "3214", "araldite-standard": "3506", "anabond-silicone": "3214", "dorma-floor-spring": "8302", "merino-laminate-1mm": "4823", "epoxy-grout": "3214", "tile-spacer-2mm": "3926", "tile-levelling": "3926", "bosch-masonry-bits": "8207", "cpplus-wifi-cam": "8525", "havells-exhaust-150": "8414"};
+
 const DEALS = ['ultratech-ppc', 'ap-trucare-putty-40', 'ashirvad-flowguard-cpvc', 'polycab-maxima-1-5', 'atomberg-renesa', 'century-sainik-mr-18'];
 const NEW = ['birla-wallseal-putty', 'acc-suraksha-power', 'racold-geyser-15', 'glass-patch-fitting', 'bed-fitting'];
 
@@ -231,6 +233,8 @@ function build() {
         returnable: !o.nr,
         heavy: !!o.heavy,
         tag: o.tag || null,
+        hsn: HSN[id] || categories.find((c) => c.id === categoryId)?.hsn || '',
+        gstRate: 0.18,
         kind: o.k || 'box',
         color: o.c || '#c7ccd1',
         priceSource: o.src === 'hr' ? 'homerun-list' : 'estimate',

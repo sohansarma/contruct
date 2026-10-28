@@ -96,6 +96,10 @@ export function Account() {
   const { user, setUser, ready } = useStore();
   const [wallet, setWallet] = useState(null);
   const { t, lang, setLang } = useI18n();
+  const { notify } = useStore();
+  const [deleting, setDeleting] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [delErr, setDelErr] = useState('');
   useEffect(() => { if (user) api.wallet(user).then(setWallet); }, [user]);
   if (!ready) return null;
   const links = [
@@ -151,6 +155,19 @@ export function Account() {
         <a href={`tel:${brand.supportPhone}`}><span className="ico"><Icon name="Phone" size={18} /></span><span className="grow">{t('Call support')}</span><span className="small muted">7 AM – 10 PM</span></a>
       </div>
       {user && <button className="btn danger block" onClick={async () => { await api.signOut(); setUser(null); }}>{t('Log out')}</button>}
+      {user && <button className="btn ghost block small" style={{ marginTop: 10 }} onClick={() => setDeleting(true)}>Delete my account</button>}
+      <Sheet open={deleting} onClose={() => setDeleting(false)} title="Delete account?">
+        <form className="col" onSubmit={async (e) => {
+          e.preventDefault();
+          try { await api.deleteAccount(user); setDeleting(false); setUser(null); notify('Your account has been deleted'); } catch (x) { setDelErr(x.message); }
+        }}>
+          <p className="small">This removes your name, phone number, saved addresses, business details and any BuildRun Credit. You will be signed out.</p>
+          <p className="small muted">Past orders and tax invoices are kept without your profile, because GST law requires us to keep them.</p>
+          <label className="field"><span>Type DELETE to confirm</span><input className="input" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} autoComplete="off" /></label>
+          {delErr && <div className="small red">{delErr}</div>}
+          <button className="btn danger block" disabled={confirmText.trim().toUpperCase() !== 'DELETE'}>Delete my account</button>
+        </form>
+      </Sheet>
       <p className="xs faint center" style={{ marginTop: 16 }}>{brand.name} v1.0 · {mode === 'demo' ? 'Demo mode' : 'Live'}</p>
     </div>
   );

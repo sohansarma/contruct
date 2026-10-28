@@ -51,6 +51,7 @@ export default function AdminSettings() {
             <label className="field"><span>GSTIN</span><input className="input" {...b('gstin')} /></label>
             <label className="field"><span>GST rate (0.18 = 18%)</span><input className="input" type="number" step="0.01" {...r('gstRate')} /></label>
           </div>
+          <label className="field"><span>Invoice number prefix (up to 4 letters)</span><input className="input" {...b('invoicePrefix')} maxLength={4} /></label>
           <label className="field"><span>Registered address</span><input className="input" {...b('address')} /></label>
         </section>
 

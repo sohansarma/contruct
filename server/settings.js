@@ -83,8 +83,9 @@ export async function saveSettings(body) {
   const next = {};
   if (body.brand) {
     next.brand = {};
-    for (const k of ['name', 'tagline', 'city', 'supportPhone', 'supportEmail', 'legalName', 'gstin', 'address']) if (k in body.brand) next.brand[k] = str(body.brand[k]);
+    for (const k of ['name', 'tagline', 'city', 'supportPhone', 'supportEmail', 'legalName', 'gstin', 'address', 'invoicePrefix']) if (k in body.brand) next.brand[k] = str(body.brand[k]);
     if (next.brand.name === '') throw new HttpError(400, 'Store name is required.');
+    if ('invoicePrefix' in next.brand) next.brand.invoicePrefix = next.brand.invoicePrefix.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) || 'BR';
   }
   if (body.rules) {
     const r = body.rules;
