@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { CartBar, Footer, Header, RequireAuth, TabBar, Toast } from './components/ui.jsx';
-import { Categories, Category, Home, NotFound, Product, Search } from './pages/Shop.jsx';
+import { BrandPage, Categories, Category, Home, NotFound, Product, Search } from './pages/Shop.jsx';
 import { Cart, Checkout } from './pages/Checkout.jsx';
 import { Invoice, OrderDetail, Orders } from './pages/Orders.jsx';
 import { About, Account, Addresses, Bulk, Help, Login, Policy, PriceList, Profile, WalletPage } from './pages/Account.jsx';
@@ -19,7 +19,7 @@ export default function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
     // product, category and price-list pages set their own titles
-    if (!/^\/(p|c|price-list)(\/|$)/.test(pathname)) document.title = `${brand.name} · Building materials, delivered in an hour`;
+    if (!/^\/(p|c|b|price-list)(\/|$)/.test(pathname)) document.title = `${brand.name} · Construction materials marketplace, delivered in an hour`;
   }, [pathname]);
 
   return (
@@ -31,6 +31,7 @@ export default function App() {
           <Route path="/categories" element={<Categories />} />
           <Route path="/c/:id" element={<Category />} />
           <Route path="/p/:id" element={<Product />} />
+          <Route path="/b/:name" element={<BrandPage />} />
           <Route path="/search" element={<Search />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={auth(<Checkout />)} />

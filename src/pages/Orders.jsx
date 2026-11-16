@@ -99,9 +99,14 @@ export function OrderDetail() {
               <span className="small muted">{dateTime(o.createdAt)}</span>
             </div>
             {isActive(o) && (
-              <h2 style={{ margin: '10px 0 16px' }}>
-                {scheduled ? `Scheduled for ${o.slot}` : now < eta ? `Arriving by ${time(eta)}` : 'Arriving shortly'}
-              </h2>
+              <div className="eta-hero" style={{ margin: '10px 0 16px' }}>
+                <div>
+                  <div className="xs" style={{ opacity: 0.75, fontWeight: 600 }}>{scheduled ? 'Scheduled delivery' : 'Estimated arrival'}</div>
+                  <div className="big">{scheduled ? o.slot : now < eta ? `${Math.max(1, Math.round((eta - now) / 60000))} min` : 'Any minute now'}</div>
+                  {!scheduled && now < eta && <div className="small" style={{ opacity: 0.85 }}>Arriving by {time(eta)}</div>}
+                </div>
+                <div className="segbar" aria-hidden="true">{TRACK_STEPS.map((s) => <i key={s} className={STATUS[s].step <= step ? 'on' : ''} />)}</div>
+              </div>
             )}
             {o.status === 'delivered' && <h2 style={{ margin: '10px 0 16px' }}>Delivered at {time(o.deliveredAt)}</h2>}
             {o.status === 'cancelled' && <p className="muted" style={{ margin: '10px 0' }}>This order was cancelled{o.cancelReason ? ` (${o.cancelReason})` : ''}.</p>}

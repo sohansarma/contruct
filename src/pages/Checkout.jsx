@@ -71,17 +71,18 @@ export function Cart() {
           <div className="glass card list">
             {lines.map((l) => (
               <div key={l.key}>
-                <Link to={`/p/${l.product.id}`} style={{ width: 64, flexShrink: 0 }}><ProductArt product={l.product} size={28} showBadges={false} /></Link>
+                <Link to={`/p/${l.product.id}`} style={{ width: 60, flexShrink: 0 }}><ProductArt product={l.product} variant={l.variant} showBadges={false} /></Link>
                 <div className="grow">
-                  <div className="small" style={{ fontWeight: 600 }}>{l.product.name}</div>
+                  <div className="small" style={{ fontWeight: 700 }}>{l.product.name}</div>
                   <div className="xs muted">{l.product.brand} · {l.variant.label}</div>
+                  {l.product.inStock && l.price < l.variant.price && <div className="xs green" style={{ fontWeight: 700 }}>Bulk price {money(l.price)} each</div>}
                   {!l.product.returnable && <div className="xs faint">Non-returnable</div>}
                   {!l.product.inStock && <div className="xs red" style={{ fontWeight: 600 }}>Out of stock</div>}
                 </div>
                 {l.product.inStock ? (
                   <div className="col" style={{ alignItems: 'flex-end', gap: 6 }}>
                     <Stepper qty={l.qty} onChange={(n) => setQty(l.product.id, l.variant.id, n)} />
-                    <div className="small" style={{ fontWeight: 600 }}>{money(l.price * l.qty)}</div>
+                    <div className="small" style={{ fontWeight: 800 }}>{money(l.price * l.qty)}</div>
                   </div>
                 ) : (
                   <button className="btn sm danger" onClick={() => setQty(l.product.id, l.variant.id, 0)}>Remove</button>
@@ -101,10 +102,13 @@ export function Cart() {
         <div className="col sticky" style={{ gap: 14 }}>
           <BillCard bill={bill} />
           {unavailable.length > 0 && <div className="banner warn small"><Icon name="TriangleAlert" size={16} />{unavailable.length === 1 ? 'One item is' : `${unavailable.length} items are`} out of stock. Remove {unavailable.length === 1 ? 'it' : 'them'} to continue.</div>}
-          <button className="btn primary block" disabled={unavailable.length > 0} onClick={() => navigate(user ? '/checkout' : '/login?next=/checkout')}>
-            {t(user ? 'Proceed to checkout' : 'Sign in to checkout')} <Icon name="ArrowRight" size={18} />
-          </button>
           <p className="xs muted center">No minimum order. Prices include GST.</p>
+          <div className="actionbar">
+            <div className="ab-info mob-only"><span className="xs muted">{t('To pay')}</span><b>{money(bill.total)}</b></div>
+            <button className="btn primary block" disabled={unavailable.length > 0} onClick={() => navigate(user ? '/checkout' : '/login?next=/checkout')}>
+              {t(user ? 'Proceed to checkout' : 'Sign in to checkout')} <Icon name="ArrowRight" size={18} />
+            </button>
+          </div>
         </div>
       </div>
       <CouponSheet open={couponOpen} onClose={() => setCouponOpen(false)} lines={lines} onApply={(c) => { setCoupon(c); setCouponOpen(false); }} isFirstOrder={orderCount === 0} />
@@ -282,8 +286,8 @@ export function Checkout() {
       <BackHeader title={t('Checkout')} />
       <div className="two-col">
         <div className="col" style={{ gap: 18 }}>
-          <section className="glass card" style={{ padding: 16 }}>
-            <div className="row between" style={{ marginBottom: 12 }}><h3>{t('Deliver to')}</h3>{addresses.length > 0 && <button className="small accent" onClick={() => setAdding(true)}>+ New address</button>}</div>
+          <section className="step-card">
+            <div className="step-head"><span className="step-num">1</span><h3 className="grow">{t('Deliver to')}</h3>{addresses.length > 0 && <button className="small link" onClick={() => setAdding(true)}>+ New address</button>}</div>
             {addresses.length === 0 && !adding && <AddressForm user={user} onSaved={(a) => { setAddresses([...addresses, a]); setAddrId(a.id); }} />}
             <div className="col">
               {addresses.map((a) => (
@@ -299,8 +303,8 @@ export function Checkout() {
             </div>
           </section>
 
-          <section className="glass card" style={{ padding: 16 }}>
-            <h3 style={{ marginBottom: 12 }}>{t('Delivery time')}</h3>
+          <section className="step-card">
+            <div className="step-head"><span className="step-num">2</span><h3>{t('Delivery time')}</h3></div>
             <div className="seg" style={{ marginBottom: 12 }}>
               <button className={slotMode === 'asap' ? 'on' : ''} onClick={() => setSlotMode('asap')}>Express · {rules.etaMin}–{rules.etaMax} min</button>
               <button className={slotMode === 'later' ? 'on' : ''} onClick={() => setSlotMode('later')}>{t('Schedule')}</button>
@@ -317,8 +321,8 @@ export function Checkout() {
             </div>
           </section>
 
-          <section className="glass card" style={{ padding: 16 }}>
-            <h3 style={{ marginBottom: 12 }}>{t('Payment')}</h3>
+          <section className="step-card">
+            <div className="step-head"><span className="step-num">3</span><h3>{t('Payment')}</h3></div>
             {wallet.balance > 0 && (
               <label className="radio" style={{ marginBottom: 10 }}>
                 <input type="checkbox" className="check" checked={useWallet} onChange={(e) => setUseWallet(e.target.checked)} />
@@ -352,11 +356,14 @@ export function Checkout() {
 
         <div className="col sticky" style={{ gap: 14 }}>
           <BillCard bill={bill} />
-          {err && <div className="banner warn small"><Icon name="CircleAlert" size={18} />{err}</div>}
-          <button className="btn primary block" onClick={place} disabled={busy || !addr}>
-            {busy ? 'Placing order…' : payMethod === 'cod' ? `${t('Place order')} · ${money(bill.total)}` : bill.total === 0 ? t('Place order') : `${t('Pay')} ${money(bill.total)}`}
-          </button>
           <p className="xs muted center">By placing this order you agree to our <Link className="link" to="/policy/terms">Terms</Link> and <Link className="link" to="/policy/refund">Return policy</Link>. Cancel free within {rules.cancelWindowMin} minutes.</p>
+          {err && <div className="actionbar-msg"><div className="banner warn small" role="alert" style={{ boxShadow: 'var(--shadow-lg)' }}><Icon name="CircleAlert" size={18} /><span className="grow">{err}</span><button className="mob-only" aria-label="Dismiss" onClick={() => setErr('')}><Icon name="X" size={16} /></button></div></div>}
+          <div className="actionbar">
+            <div className="ab-info mob-only"><span className="xs muted">{slotMode === 'asap' ? `${rules.etaMin}–${rules.etaMax} min` : t('Scheduled')}</span><b>{money(bill.total)}</b></div>
+            <button className="btn primary block" onClick={place} disabled={busy || !addr}>
+              {busy ? 'Placing order…' : payMethod === 'cod' ? `${t('Place order')} · ${money(bill.total)}` : bill.total === 0 ? t('Place order') : `${t('Pay')} ${money(bill.total)}`}
+            </button>
+          </div>
         </div>
       </div>
       <Sheet open={adding} onClose={() => setAdding(false)} title="New address">

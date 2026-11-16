@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { StoreProvider } from './lib/store.jsx';
 import { I18nProvider } from './lib/i18n.jsx';
 import App from './App.jsx';
+import '@fontsource-variable/plus-jakarta-sans';
 import './styles.css';
 
 createRoot(document.getElementById('root')).render(

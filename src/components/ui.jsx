@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Icons from './icons.js';
 import { useStore } from '../lib/store.jsx';
 import { money, pct } from '../lib/format.js';
+import { unitPrice } from '../lib/pricing.js';
 import { brand, rules } from '../config.js';
 import { categoryById } from '../data/catalog.js';
 import ProductIllustration from './ProductArt.jsx';
@@ -19,10 +20,9 @@ export function ProductArt({ product, variant, showBadges = true, imageIndex = 0
   const cat = categoryById(product.categoryId);
   const v = variant || product.variants[0];
   const off = pct(v.price, v.mrp);
-  const tint = cat?.tint || '#8e8e93';
   const label = product.variants.length > 1 && !variant ? '' : shortPack(v.label || product.unit);
   return (
-    <div className="art" style={{ background: `radial-gradient(120% 90% at 50% 15%, #ffffff 0%, ${tint}1f 100%)` }}>
+    <div className={`art ${product.inStock ? '' : 'out'}`} style={{ '--tint': cat?.tint || '#8e8e93' }}>
       {product.images?.length || product.image ? (
         <img src={imageUrl(product.images?.[imageIndex] || product.images?.[0] || product.image)} alt={product.name} loading="lazy" />
       ) : (
@@ -39,60 +39,106 @@ const shortPack = (s = '') => s.replace(/\b(bag|sheet|coil|length|each)\b/gi, ''
 
 export function Stepper({ qty, onChange, large }) {
   return (
-    <div className={`stepper ${large ? 'lg' : ''}`} onClick={(e) => e.preventDefault()}>
-      <button aria-label="Decrease" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(qty - 1); }}>
-        <Icon name="Minus" size={16} />
-      </button>
+    <div className={`stepper ${large ? 'lg' : ''}`}>
+      <button aria-label="Decrease" onClick={() => onChange(qty - 1)}><Icon name="Minus" size={16} /></button>
       <span aria-live="polite">{qty}</span>
-      <button aria-label="Increase" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onChange(qty + 1); }}>
-        <Icon name="Plus" size={16} />
-      </button>
+      <button aria-label="Increase" onClick={() => onChange(qty + 1)}><Icon name="Plus" size={16} /></button>
     </div>
   );
 }
 
+/** Add button / stepper for one size of a product. */
 export function AddControl({ product, variant, large }) {
   const { qtyOf, setQty } = useStore();
+  const { t } = useI18n();
   const v = variant || product.variants[0];
   const qty = qtyOf(product.id, v.id);
-  const navigate = useNavigate();
-  const { t } = useI18n();
-  if (!product.inStock) return <span className="small faint">{t('Out of stock')}</span>;
+  if (!product.inStock) return <span className="small faint" style={{ fontWeight: 600 }}>{t('Out of stock')}</span>;
   if (qty > 0) return <Stepper qty={qty} large={large} onChange={(n) => setQty(product.id, v.id, n)} />;
-  // multi-variant products open the product page from cards so customers pick a size
-  const needsChoice = !variant && product.variants.length > 1;
   return (
-    <button
-      className={large ? 'btn primary block' : 'add-btn'}
-      onClick={(e) => {
-        e.preventDefault(); e.stopPropagation();
-        if (needsChoice) navigate(`/p/${product.id}`);
-        else setQty(product.id, v.id, 1);
-      }}
-    >
-      {t(large ? 'Add to cart' : needsChoice ? 'Choose' : 'Add')}
+    <button className={large ? 'btn primary block' : 'add-btn'} aria-label={large ? undefined : `Add ${product.name}${product.variants.length > 1 ? ` ${v.label}` : ''}`} onClick={() => setQty(product.id, v.id, 1)}>
+      {t(large ? 'Add to cart' : 'Add')}
     </button>
   );
 }
 
+/** Pick sizes without leaving the list: every size with its price and its own stepper. */
+export function VariantSheet({ product, open, onClose }) {
+  const { qtyOf } = useStore();
+  return (
+    <Sheet open={open} onClose={onClose} title={product.name}>
+      <div className="small muted" style={{ marginTop: -8, marginBottom: 4 }}>{product.brand} · choose a size</div>
+      {product.variants.map((v) => {
+        const qty = qtyOf(product.id, v.id);
+        const tier = v.tiers?.[v.tiers.length - 1];
+        return (
+          <div className="vrow" key={v.id}>
+            <div className="grow">
+              <div style={{ fontWeight: 700 }}>{v.label}</div>
+              <div className="row" style={{ gap: 6 }}>
+                <span className="price">{money(unitPrice(v, Math.max(qty, 1)))}</span>
+                {v.mrp > v.price && <span className="xs strike">{money(v.mrp)}</span>}
+              </div>
+              {tier && <div className="bulk-hint" style={{ display: 'inline-block', marginTop: 4 }}>{money(tier.price)} each on {tier.min}+</div>}
+            </div>
+            <AddControl product={product} variant={v} />
+          </div>
+        );
+      })}
+      <div className="row" style={{ marginTop: 12 }}>
+        <Link className="btn outline grow" to={`/p/${product.id}`} onClick={onClose}>Details</Link>
+        <button className="btn primary grow" onClick={onClose}>Done</button>
+      </div>
+    </Sheet>
+  );
+}
+
 export function ProductCard({ product }) {
+  const { qtyOf } = useStore();
+  const { t } = useI18n();
+  const [pick, setPick] = useState(false);
   const v = product.variants[0];
   const many = product.variants.length > 1;
+  const inCart = many ? product.variants.reduce((n, x) => n + qtyOf(product.id, x.id), 0) : 0;
+  const tier = v.tiers?.[v.tiers.length - 1];
   return (
-    <Link to={`/p/${product.id}`} className="pcard glass">
-      <ProductArt product={product} />
-      <div className="meta">{product.brand}</div>
-      <div className="name clamp2">{product.name}</div>
-      <div className="meta">{many ? `${product.variants.length} options` : product.unit}</div>
-      {v.tiers?.length > 0 && <div className="bulk-hint">{money(v.tiers[v.tiers.length - 1].price)} each on {v.tiers[v.tiers.length - 1].min}+</div>}
+    <div className="pcard">
+      <Link to={`/p/${product.id}`} className="pcard-link">
+        <ProductArt product={product} />
+        <div className="meta">{product.brand}</div>
+        <div className="name clamp2">{product.name}</div>
+        <div className="meta">{many ? `${product.variants.length} sizes` : product.unit}</div>
+        {tier && <div className="bulk-hint">{money(tier.price)} each on {tier.min}+</div>}
+      </Link>
       <div className="foot">
         <div>
-          <div className="price">{many && <span className="xs muted" style={{ fontWeight: 500 }}>from </span>}{money(v.price)}</div>
+          <div className="price">{many && <span className="xs muted" style={{ fontWeight: 600 }}>from </span>}{money(v.price)}</div>
           {v.mrp > v.price && <div className="xs strike">{money(v.mrp)}</div>}
         </div>
-        <AddControl product={product} />
+        {!many ? <AddControl product={product} /> : !product.inStock ? <span className="small faint" style={{ fontWeight: 600 }}>{t('Out of stock')}</span> : (
+          <button className={`add-btn ${inCart ? 'has' : ''}`} aria-label={`Choose size: ${product.name}`} onClick={() => setPick(true)}>
+            {inCart ? `${inCart} in cart` : t('Add')}<Icon name="ChevronDown" size={13} />
+          </button>
+        )}
       </div>
-    </Link>
+      {many && <VariantSheet product={product} open={pick} onClose={() => setPick(false)} />}
+    </div>
+  );
+}
+
+/** Placeholder cards while the catalogue loads. */
+export function SkeletonGrid({ n = 6, rail }) {
+  return (
+    <div className={rail ? 'p-rail' : 'p-grid'} aria-hidden="true">
+      {Array.from({ length: n }, (_, i) => (
+        <div className="pcard" key={i}>
+          <div className="skel" style={{ aspectRatio: '1' }} />
+          <div className="skel" style={{ height: 12, width: '50%' }} />
+          <div className="skel" style={{ height: 14 }} />
+          <div className="skel" style={{ height: 30, width: '70%' }} />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -181,41 +227,75 @@ export function LocationSheet({ open, onClose }) {
   );
 }
 
+/** Pages that focus on one job hide the search row to save space. */
+const COMPACT = /^\/(cart|checkout|login|orders|account|admin|bulk|help|policy|about)(\/|$)/;
+/** Pages with their own pinned bottom button (no tab bar, no cart bar). */
+const OWN_ACTION = /^\/(p\/|cart$|checkout$)/;
+
+function HeaderSearch() {
+  const { pathname } = useLocation();
+  const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { pushRecent } = useStore();
+  const { t, lang } = useI18n();
+  const onSearch = pathname === '/search';
+  const term = onSearch ? params.get('q') || '' : '';
+  const [q, setQ] = useState(term);
+  useEffect(() => { setQ(term); }, [term]);
+  const change = (v) => {
+    setQ(v);
+    if (onSearch) setParams(v ? { q: v } : {}, { replace: true });
+    else navigate(`/search${v ? `?q=${encodeURIComponent(v)}` : ''}`);
+  };
+  return (
+    <form className="searchbar" role="search" onSubmit={(e) => { e.preventDefault(); if (q.trim()) pushRecent(q.trim()); e.currentTarget.querySelector('input').blur(); }}>
+      <Icon name="Search" size={18} className="faint" />
+      <input
+        type="search" enterKeyHint="search" autoComplete="off" aria-label="Search products"
+        placeholder={lang === 'en' ? 'Search cement, wires, plywood…' : t('search.placeholder')}
+        value={q} onChange={(e) => change(e.target.value)}
+        onFocus={() => { if (!onSearch) navigate('/search'); }}
+      />
+      {q && <button type="button" aria-label="Clear search" onClick={() => change('')}><Icon name="X" size={16} /></button>}
+    </form>
+  );
+}
+
 export function Header() {
   const { location, cartCount, user } = useStore();
+  const { pathname } = useLocation();
   const [locOpen, setLocOpen] = useState(false);
   const { t } = useI18n();
   const nav = [
-    ['/', 'Home', 'House'],
     ['/categories', 'Categories', 'LayoutGrid'],
     ['/orders', 'Orders', 'Package'],
     ['/account', user ? 'Account' : 'Sign in', 'CircleUser'],
   ];
   return (
     <>
-      <header className="topbar glass">
+      <header className={`topbar no-print ${COMPACT.test(pathname) ? 'compact' : ''}`}>
         <div className="topbar-inner">
-          <Link to="/" className="logo" aria-label={brand.name}>
-            <img src="/icon.svg" alt="" />
-            <span className="hide-sm">{brand.name}</span>
+          <Link to="/" className="logo" aria-label={`${brand.name} home`}>
+            <img src="/logo-mark.svg" alt="" />
+            <span className="desk-only">{brand.name}</span>
           </Link>
-          <button className="loc-btn grow" onClick={() => setLocOpen(true)}>
+          <button className="loc-btn" onClick={() => setLocOpen(true)}>
             <span className="eta">
-              {location?.serviceable ? `${rules.etaMin}–${rules.etaMax} min` : t(location ? 'Not serviceable' : 'Set location')}
+              {location?.serviceable ? <><Icon name="Zap" size={16} />{rules.etaMin}–{rules.etaMax} min</> : t(location ? 'Not serviceable' : 'Set location')}
               <Icon name="ChevronDown" size={16} />
             </span>
             <span className="addr ellipsis">
-              <Icon name="MapPin" size={12} /> {location ? `${location.area ? location.area + ', ' : ''}${location.pincode}` : `${t('Delivering across')} ${brand.city}`}
+              {location ? `${t('Delivering to')} ${location.area ? location.area + ', ' : ''}${location.pincode}` : `${t('Delivering across')} ${brand.city}`}
             </span>
           </button>
-          <nav className="nav-links">
+          <HeaderSearch />
+          <nav className="nav-links" aria-label="Main">
             {nav.map(([to, label, icon]) => (
-              <NavLink key={to} to={to} end={to === '/'}><Icon name={icon} size={18} />{t(label)}</NavLink>
+              <NavLink key={to} to={to}><Icon name={icon} size={18} />{t(label)}</NavLink>
             ))}
           </nav>
-          <Link to="/search" className="icon-btn" aria-label="Search"><Icon name="Search" size={19} /></Link>
-          <Link to="/cart" className="icon-btn" aria-label="Cart">
-            <Icon name="ShoppingBag" size={19} />
+          <Link to="/cart" className="icon-btn" aria-label={`Cart, ${cartCount} items`}>
+            <Icon name="ShoppingCart" size={19} />
             {cartCount > 0 && <span className="badge">{cartCount}</span>}
           </Link>
         </div>
@@ -233,7 +313,7 @@ function DemoRibbon() {
     <div className="page no-print" style={{ paddingBottom: 0 }}>
       <div className="banner info small">
         <Icon name="FlaskConical" size={18} />
-        <span className="grow">Demo mode: orders are saved on this device, and the login code is <b>123456</b>. Connect Supabase to go live.</span>
+        <span className="grow">Demo mode: orders stay on this device and the login code is <b>123456</b>.</span>
         <button aria-label="Dismiss" onClick={() => { sessionStorage.setItem('br:ribbon', '1'); setHide(true); }}><Icon name="X" size={16} /></button>
       </div>
     </div>
@@ -241,8 +321,9 @@ function DemoRibbon() {
 }
 
 export function TabBar() {
-  const { cartCount } = useStore();
+  const { pathname } = useLocation();
   const { t } = useI18n();
+  if (OWN_ACTION.test(pathname)) return null;
   const tabs = [
     ['/', 'Home', 'House'],
     ['/categories', 'Categories', 'LayoutGrid'],
@@ -250,12 +331,11 @@ export function TabBar() {
     ['/account', 'Account', 'CircleUser'],
   ];
   return (
-    <nav className="tabbar glass" aria-label="Primary">
+    <nav className="tabbar no-print" aria-label="Primary">
       {tabs.map(([to, label, icon]) => (
         <NavLink key={to} to={to} end={to === '/'}>
           <Icon name={icon} size={22} />
           {t(label)}
-          {to === '/cart' && cartCount > 0 && <span className="badge">{cartCount}</span>}
         </NavLink>
       ))}
     </nav>
@@ -266,13 +346,13 @@ export function CartBar() {
   const { lines, cartCount } = useStore();
   const { pathname } = useLocation();
   const { t } = useI18n();
-  if (!cartCount || ['/cart', '/checkout'].includes(pathname) || pathname.startsWith('/orders') || pathname.startsWith('/admin')) return null;
+  if (!cartCount || OWN_ACTION.test(pathname) || pathname.startsWith('/orders') || pathname.startsWith('/admin') || pathname === '/login') return null;
   const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
   return (
     <Link to="/cart" className="cartbar no-print">
-      <div>
-        <div style={{ fontWeight: 700 }}>{cartCount} item{cartCount > 1 ? 's' : ''} · {money(total)}</div>
-        <div className="xs" style={{ opacity: 0.85 }}>{total >= rules.freeDeliveryAbove ? 'Free delivery unlocked' : `Add ${money(rules.freeDeliveryAbove - total)} for free delivery`}</div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 800 }}>{cartCount} item{cartCount > 1 ? 's' : ''} · {money(total)}</div>
+        <div className="xs ellipsis" style={{ opacity: 0.8 }}>{total >= rules.freeDeliveryAbove ? 'Free delivery unlocked' : `Add ${money(rules.freeDeliveryAbove - total)} for free delivery`}</div>
       </div>
       <span className="go">{t('View cart')} <Icon name="ChevronRight" size={18} /></span>
     </Link>
@@ -320,7 +400,7 @@ export function BackHeader({ title, right }) {
   const navigate = useNavigate();
   return (
     <div className="row" style={{ marginBottom: 16 }}>
-      <button className="icon-btn" aria-label="Back" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}>
+      <button className="icon-btn" aria-label="Back" style={{ background: 'var(--surface)', border: '1px solid var(--hairline)' }} onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}>
         <Icon name="ChevronLeft" size={20} />
       </button>
       <h2 className="grow ellipsis">{title}</h2>

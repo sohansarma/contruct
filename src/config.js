@@ -47,8 +47,8 @@ export const coupons = [
 
 /** Home-page banners. */
 export const banners = [
-  { id: 'b1', title: 'Bulk cement, lower price', subtitle: 'Buy 30+ bags and pay less per bag', link: '/c/cement', color: '#ff4f1f', active: true },
-  { id: 'b2', title: 'Plan your paint job', subtitle: 'Use the calculator to get exact quantities', link: '/calculator', color: '#5e5ce6', active: true },
+  { id: 'b1', title: 'Bulk cement, lower price', subtitle: 'Buy 30+ bags and pay less per bag', link: '/c/cement', color: '#1d4ed8', active: true },
+  { id: 'b2', title: 'Plan your paint job', subtitle: 'Use the calculator to get exact quantities', link: '/calculator', color: '#0b7a43', active: true },
 ];
 
 /** "560001-560005, 562125, -560003" → Set of pincodes */

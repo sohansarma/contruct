@@ -121,7 +121,7 @@ export function Account() {
     <div className="page" style={{ maxWidth: 720 }}>
       {user ? (
         <div className="glass card row" style={{ padding: 18, marginBottom: 18 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 28, background: 'linear-gradient(135deg,var(--accent),var(--accent-2))', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 700 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 28, background: 'var(--brand)', color: 'var(--brand-ink)', display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 700 }}>
             {(user.name || '?').slice(0, 1).toUpperCase()}
           </div>
           <div className="grow">
